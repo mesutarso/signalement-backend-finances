@@ -1,0 +1,73 @@
+server:
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        name: SESSION
+        http-only: true
+        same-site: lax
+
+spring:
+  application:
+    name: signalements
+  session:
+    timeout: 8h
+    redis:
+      namespace: signalements:session
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/signalements}
+    username: ${SPRING_DATASOURCE_USERNAME:signalements}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.default_schema: app
+  flyway:
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: false
+  show-actuator: false
+  paths-to-match: /api/**
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  frontend-origin: ${APP_FRONTEND_ORIGIN:http://localhost:3000}
+  documentation-open: ${APP_DOCUMENTATION_OPEN:true}
+  access:
+    admin-username: ${ACCESS_ADMIN_USERNAME:}
+    admin-password: ${ACCESS_ADMIN_PASSWORD:}
+  reports:
+    schedule-enabled: ${REPORTS_SCHEDULE_ENABLED:true}
+    cron: ${REPORTS_IMPORT_CRON:0 0 */3 * * *}
+    import-on-startup: ${REPORTS_IMPORT_ON_STARTUP:true}
+    facno:
+      base-url: ${FACNO_BASE_URL:https://facnordc.dgirdc.cd/appmobile/api/ReportedProblems}
+      api-key: ${FACNO_API_KEY:}
+      timeout: 30s
+  ocr:
+    mistral:
+      base-url: ${MISTRAL_BASE_URL:https://api.mistral.ai}
+      api-key: ${MISTRAL_API_KEY:}
+      model: ${MISTRAL_OCR_MODEL:mistral-ocr-latest}
+      timeout: 60s
