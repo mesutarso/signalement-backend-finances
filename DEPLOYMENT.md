@@ -8,7 +8,7 @@ Le réseau externe `coolify` doit exister sur le serveur et être partagé avec 
 
 ## Variables
 
-Saisir les valeurs du fichier `.env.production.example` dans Coolify. Utiliser de nouveaux mots de passe de production. Ne pas publier `.env` ou `.env.production`. `APP_FRONTEND_ORIGIN` doit être le domaine HTTPS réel du frontend, sans port interne ni barre finale.
+Saisir les valeurs du fichier `.env.production.example` dans Coolify. Coolify génère les mots de passe PostgreSQL et Redis à partir des variables SERVICE_PASSWORD_64_POSTGRES et SERVICE_PASSWORD_64_REDIS. Saisir séparément le mot de passe administrateur initial. Ne pas publier `.env` ou `.env.production`. `APP_FRONTEND_ORIGIN` doit être le domaine HTTPS réel du frontend, sans port interne ni barre finale.
 
 ## Persistance
 
