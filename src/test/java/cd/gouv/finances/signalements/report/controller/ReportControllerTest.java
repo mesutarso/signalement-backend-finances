@@ -8,6 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import cd.gouv.finances.signalements.config.PlatformProperties;
 import cd.gouv.finances.signalements.config.SecurityConfig;
 import cd.gouv.finances.signalements.report.command.AssignReportCommand;
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
+import cd.gouv.finances.signalements.report.command.DecideDuplicateCommand;
+import cd.gouv.finances.signalements.report.command.LinkPhotoRequestCommand;
+import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
+import cd.gouv.finances.signalements.report.command.RecordQualificationCommand;
+import cd.gouv.finances.signalements.report.command.RequestPhotoCommand;
+import cd.gouv.finances.signalements.report.command.RequestPhotoReadingCommand;
 import cd.gouv.finances.signalements.report.command.RequestImportCommand;
 import cd.gouv.finances.signalements.report.query.ReadAssigneesQuery;
 import cd.gouv.finances.signalements.report.query.ReadImportsQuery;
@@ -65,6 +72,27 @@ class ReportControllerTest {
     @MockitoBean
     private AssignReportCommand assignReportCommand;
 
+    @MockitoBean
+    private RequestPhotoReadingCommand requestPhotoReadingCommand;
+
+    @MockitoBean
+    private RequestPhotoCommand requestPhotoCommand;
+
+    @MockitoBean
+    private LinkPhotoRequestCommand linkPhotoRequestCommand;
+
+    @MockitoBean
+    private PrepareDuplicateAlerts prepareDuplicateAlerts;
+
+    @MockitoBean
+    private DecideDuplicateCommand decideDuplicateCommand;
+
+    @MockitoBean
+    private RecordQualificationCommand recordQualificationCommand;
+
+    @MockitoBean
+    private RecordAudit recordAudit;
+
     @Test
     void refusesAnAnonymousReportList() throws Exception {
         mockMvc.perform(get("/api/reports")).andExpect(status().isUnauthorized());
@@ -77,6 +105,26 @@ class ReportControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"start\":\"2026-01-01\",\"end\":\"2026-11-01\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "AUDITOR")
+    void refusesAPhotoRequestByAnAuditor() throws Exception {
+        mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/photos/" + java.util.UUID.randomUUID() + "/requests")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Photo floue\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "AUDITOR")
+    void refusesAQualificationByAnAuditor() throws Exception {
+        mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/qualifications")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decision\":\"reject\",\"justification\":\"Pas de manquement visible.\"}"))
                 .andExpect(status().isForbidden());
     }
 }

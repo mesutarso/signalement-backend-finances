@@ -62,7 +62,7 @@ class AccountControllerTest {
         mockMvc.perform(post("/api/accounts")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"agent1\",\"password\":\"Signalements-dev-2026\",\"role\":\"AGENT\"}"))
+                        .content("{\"username\":\"agent1\",\"password\":\"Unit-test-42safe\",\"role\":\"AGENT\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("forbidden"));
     }

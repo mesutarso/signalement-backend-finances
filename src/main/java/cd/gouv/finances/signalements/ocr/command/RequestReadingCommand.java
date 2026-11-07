@@ -2,6 +2,7 @@ package cd.gouv.finances.signalements.ocr.command;
 
 import cd.gouv.finances.signalements.ocr.DocumentRejected;
 import cd.gouv.finances.signalements.ocr.EngineUnavailable;
+import cd.gouv.finances.signalements.ocr.ExtractedArticle;
 import cd.gouv.finances.signalements.ocr.ReadingQuality;
 import cd.gouv.finances.signalements.ocr.ReadingStatus;
 import cd.gouv.finances.signalements.ocr.dto.ReadingResponse;
@@ -37,14 +38,19 @@ public class RequestReadingCommand {
         }
         try {
             var response = documentReader.read(content, mediaType);
+            var articles = response.articles() == null
+                    ? List.<ExtractedArticle>of()
+                    : response.articles().stream().filter(ExtractedArticle::present).toList();
             return readingStore.store(new ReadingToStore(
                     documentReference,
                     fingerprint,
                     ReadingStatus.READ,
-                    ReadingQuality.from(response.fields()),
+                    ReadingQuality.from(response.fields(), !articles.isEmpty()),
                     response.model(),
                     null,
-                    response.fields()));
+                    response.confidence(),
+                    response.fields(),
+                    articles));
         } catch (EngineUnavailable unavailable) {
             return readingStore.store(new ReadingToStore(
                     documentReference,
@@ -53,6 +59,8 @@ public class RequestReadingCommand {
                     null,
                     null,
                     unavailable.code(),
+                    null,
+                    List.of(),
                     List.of()));
         }
     }

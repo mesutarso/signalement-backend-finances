@@ -54,17 +54,6 @@ public final class DocumentSchema {
     private static ObjectNode textOrNull(ObjectMapper mapper, DocumentField field) {
         var node = mapper.createObjectNode();
         node.set("type", mapper.createArrayNode().add("string").add("null"));
-        if (field == DocumentField.DOCUMENT_TYPE) {
-            node.set(
-                    "enum",
-                    mapper.createArrayNode()
-                            .add("invoice")
-                            .add("receipt")
-                            .add("ticket")
-                            .add("other")
-                            .add("unreadable")
-                            .addNull());
-        }
         return node;
     }
 }

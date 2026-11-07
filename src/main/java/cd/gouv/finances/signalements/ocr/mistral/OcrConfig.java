@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.ocr.mistral;
 
+import cd.gouv.finances.signalements.ocr.herdys.HerdysOcrProperties;
 import java.net.http.HttpClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -8,7 +9,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-@EnableConfigurationProperties(MistralOcrProperties.class)
+@EnableConfigurationProperties({MistralOcrProperties.class, HerdysOcrProperties.class})
 public class OcrConfig {
 
     @Bean

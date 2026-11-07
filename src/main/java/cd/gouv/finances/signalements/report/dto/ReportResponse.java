@@ -1,5 +1,7 @@
 package cd.gouv.finances.signalements.report.dto;
 
+import cd.gouv.finances.signalements.report.dto.PhotoRequestResponse;
+import cd.gouv.finances.signalements.report.dto.PhotoResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,5 +27,9 @@ public record ReportResponse(
         @Schema(description = "Present when the caller may see the reporter.")
         String reporterUserId,
         List<PhotoResponse> photos,
-        List<AssignmentResponse> assignments) {
+        List<AssignmentResponse> assignments,
+        List<PhotoRequestResponse> photoRequests,
+        List<DuplicateAlertResponse> duplicates,
+        List<QualificationResponse> qualifications,
+        List<SupervisionReviewResponse> reviews) {
 }

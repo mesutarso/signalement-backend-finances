@@ -11,6 +11,7 @@ import cd.gouv.finances.signalements.access.Role;
 import cd.gouv.finances.signalements.access.entity.UserAccount;
 import cd.gouv.finances.signalements.access.repository.UserAccountRepository;
 import cd.gouv.finances.signalements.access.security.AccountDetailsService;
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.config.ApiExceptionHandler;
 import cd.gouv.finances.signalements.config.PlatformProperties;
 import cd.gouv.finances.signalements.config.SecurityConfig;
@@ -47,12 +48,15 @@ class AuthControllerTest {
     @MockitoBean
     private UserAccountRepository userAccountRepository;
 
+    @MockitoBean
+    private RecordAudit recordAudit;
+
     @Test
     void acceptsTheCookieTokenTheBrowserSends() throws Exception {
         var account = new UserAccount(
                 UUID.randomUUID(),
                 "admin",
-                passwordEncoder.encode("Signalements-dev-2026"),
+                passwordEncoder.encode("Unit-test-42safe"),
                 Role.ADMINISTRATOR,
                 Instant.parse("2026-11-06T00:00:00Z"));
         when(userAccountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
@@ -64,7 +68,7 @@ class AuthControllerTest {
                         .cookie(new Cookie("XSRF-TOKEN", csrfCookie.getValue()))
                         .header("X-XSRF-TOKEN", csrfCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Signalements-dev-2026\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"Unit-test-42safe\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("ADMINISTRATOR"));
     }
@@ -74,7 +78,7 @@ class AuthControllerTest {
         var account = new UserAccount(
                 UUID.randomUUID(),
                 "admin",
-                passwordEncoder.encode("Signalements-dev-2026"),
+                passwordEncoder.encode("Unit-test-42safe"),
                 Role.ADMINISTRATOR,
                 Instant.parse("2026-11-06T00:00:00Z"));
         when(userAccountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
@@ -82,7 +86,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"Signalements-dev-2026\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"Unit-test-42safe\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.role").value("ADMINISTRATOR"))
@@ -95,7 +99,7 @@ class AuthControllerTest {
         var account = new UserAccount(
                 UUID.randomUUID(),
                 "admin",
-                passwordEncoder.encode("Signalements-dev-2026"),
+                passwordEncoder.encode("Unit-test-42safe"),
                 Role.ADMINISTRATOR,
                 Instant.parse("2026-11-06T00:00:00Z"));
         when(userAccountRepository.findByUsername("admin")).thenReturn(Optional.of(account));

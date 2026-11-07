@@ -4,6 +4,7 @@ import cd.gouv.finances.signalements.ocr.DocumentContract;
 import cd.gouv.finances.signalements.ocr.ReadingStatus;
 import cd.gouv.finances.signalements.ocr.dto.ReadingResponse;
 import cd.gouv.finances.signalements.ocr.entity.DocumentReading;
+import cd.gouv.finances.signalements.ocr.entity.ReadingArticle;
 import cd.gouv.finances.signalements.ocr.entity.StoredField;
 import cd.gouv.finances.signalements.ocr.mapper.ReadingMapper;
 import cd.gouv.finances.signalements.ocr.port.ReadingStore;
@@ -43,8 +44,13 @@ public class StoreReading implements ReadingStore {
                 DocumentContract.VERSION,
                 reading.errorCode(),
                 Instant.now());
+        entity.read(reading.confidence());
         for (var field : reading.fields()) {
             entity.add(new StoredField(UUID.randomUUID(), field.name(), field.value(), field.present()));
+        }
+        var position = 0;
+        for (var article : reading.articles()) {
+            entity.add(new ReadingArticle(UUID.randomUUID(), position++, article.designation(), article.amount()));
         }
         return ReadingMapper.toResponse(readingRepository.save(entity));
     }

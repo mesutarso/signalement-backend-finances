@@ -1,0 +1,91 @@
+services:
+  backend:
+    stop_grace_period: 90s
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-signalements}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-signalements}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+      APP_FRONTEND_ORIGIN: ${APP_FRONTEND_ORIGIN:?}
+      APP_DOCUMENTATION_OPEN: "false"
+      ACCESS_ADMIN_USERNAME: ${ACCESS_ADMIN_USERNAME:?}
+      ACCESS_ADMIN_PASSWORD: ${ACCESS_ADMIN_PASSWORD:?}
+      FACNO_BASE_URL: ${FACNO_BASE_URL:-https://facnordc.dgirdc.cd/appmobile/api/ReportedProblems}
+      FACNO_API_KEY: ${FACNO_API_KEY:?}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      HERDYS_OCR_BASE_URL: ${HERDYS_OCR_BASE_URL:-}
+      REPORTS_SCHEDULE_ENABLED: ${REPORTS_SCHEDULE_ENABLED:-true}
+      REPORTS_IMPORT_ON_STARTUP: "false"
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "true"
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: INFO
+      LOGGING_LEVEL_ORG_HIBERNATE: WARN
+    expose:
+      - "8080"
+    networks:
+      application:
+        aliases:
+          - signalements-backend
+      data: {}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-signalements}
+      POSTGRES_USER: ${POSTGRES_USER:-signalements}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - redis-data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+networks:
+  application:
+    external: true
+    name: coolify
+  data:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:

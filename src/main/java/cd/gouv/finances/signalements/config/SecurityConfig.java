@@ -87,6 +87,14 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.DELETE, "/api/auth").authenticated();
                     requests.requestMatchers(HttpMethod.PUT, "/api/accounts/*/password").authenticated();
                     requests.requestMatchers("/api/accounts/**").hasRole("ADMINISTRATOR");
+                    requests.requestMatchers(HttpMethod.GET, "/api/auth")
+                            .hasAnyRole("AGENT", "SUPERVISOR", "AUDITOR", "ADMINISTRATOR", "CELLULE", "CABINET", "PAYMASTER");
+                    requests.requestMatchers(HttpMethod.POST, "/api/payment-statements/*/attempts")
+                            .hasRole("PAYMASTER");
+                    requests.requestMatchers(HttpMethod.GET, "/api/payment-statements", "/api/payment-statements/**")
+                            .hasAnyRole("SUPERVISOR", "AUDITOR", "ADMINISTRATOR", "CELLULE", "CABINET", "PAYMASTER");
+                    requests.requestMatchers(HttpMethod.POST, "/api/payment-statements", "/api/payment-statements/**")
+                            .hasAnyRole("SUPERVISOR", "ADMINISTRATOR", "CELLULE", "CABINET");
                     requests.requestMatchers(HttpMethod.GET, "/api/**")
                             .hasAnyRole("AGENT", "SUPERVISOR", "AUDITOR", "ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.POST, "/api/**")

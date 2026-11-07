@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.report.command;
 
+import cd.gouv.finances.signalements.report.duplicate.PhotoFingerprint;
 import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.entity.ReportPhoto;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
@@ -49,12 +50,17 @@ public class StoreReport {
             if (photo.alreadyStored() || photo.content() == null || photo.content().length == 0) {
                 continue;
             }
-            if (report.addPhoto(new ReportPhoto(
-                    UUID.randomUUID(), report, photo.externalId(), photo.contentType(), photo.content()))) {
+            if (report.addPhoto(stamp(new ReportPhoto(
+                    UUID.randomUUID(), report, photo.externalId(), photo.contentType(), photo.content())))) {
                 added++;
             }
         }
         return added;
+    }
+
+    private static ReportPhoto stamp(ReportPhoto photo) {
+        photo.stamp(PhotoFingerprint.of(photo.getContent()));
+        return photo;
     }
 
     public record Outcome(boolean created, int createdPhotos) {

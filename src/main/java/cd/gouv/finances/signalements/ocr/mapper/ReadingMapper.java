@@ -1,8 +1,11 @@
 package cd.gouv.finances.signalements.ocr.mapper;
 
-import cd.gouv.finances.signalements.ocr.dto.FieldResponse;
+import cd.gouv.finances.signalements.ocr.DocumentField;
+import cd.gouv.finances.signalements.ocr.dto.ArticleResponse;
 import cd.gouv.finances.signalements.ocr.dto.ReadingResponse;
 import cd.gouv.finances.signalements.ocr.entity.DocumentReading;
+import cd.gouv.finances.signalements.ocr.entity.ReadingArticle;
+import cd.gouv.finances.signalements.ocr.entity.StoredField;
 import java.util.Comparator;
 
 public final class ReadingMapper {
@@ -11,18 +14,30 @@ public final class ReadingMapper {
     }
 
     public static ReadingResponse toResponse(DocumentReading reading) {
-        var fields = reading.getFields().stream()
-                .sorted(Comparator.comparing(stored -> stored.getName()))
-                .map(field -> new FieldResponse(field.getName(), field.getValue(), field.isPresent()))
-                .toList();
         return new ReadingResponse(
                 reading.getId(),
                 reading.getDocumentReference(),
                 reading.getStatus().name(),
                 reading.getQuality() == null ? null : reading.getQuality().name(),
-                reading.getSchemaVersion(),
-                reading.getModel(),
-                reading.getErrorCode(),
-                fields);
+                reading.getConfidence(),
+                value(reading, DocumentField.SELLER_NAME),
+                value(reading, DocumentField.SELLER_TAX_ID),
+                value(reading, DocumentField.DOCUMENT_DATE),
+                value(reading, DocumentField.TOTAL_AMOUNT),
+                value(reading, DocumentField.DOCUMENT_NUMBER),
+                value(reading, DocumentField.READ_CODE),
+                reading.getArticles().stream()
+                        .sorted(Comparator.comparingInt(ReadingArticle::getPosition))
+                        .map(article -> new ArticleResponse(article.getDesignation(), article.getAmount()))
+                        .toList(),
+                reading.getErrorCode());
+    }
+
+    private static String value(DocumentReading reading, DocumentField field) {
+        return reading.getFields().stream()
+                .filter(stored -> field.nameKey().equals(stored.getName()) && stored.isPresent())
+                .map(StoredField::getValue)
+                .findFirst()
+                .orElse(null);
     }
 }

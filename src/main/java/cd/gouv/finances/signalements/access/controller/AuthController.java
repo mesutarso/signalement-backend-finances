@@ -4,6 +4,7 @@ import cd.gouv.finances.signalements.access.AccessRejected;
 import cd.gouv.finances.signalements.access.dto.AccountResponse;
 import cd.gouv.finances.signalements.access.dto.LoginRequest;
 import cd.gouv.finances.signalements.access.mapper.AccountMapper;
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.access.security.AccountUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -35,6 +36,7 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
+    private final RecordAudit recordAudit;
 
     @GetMapping("/api/auth/csrf")
     @SecurityRequirements
@@ -76,6 +78,9 @@ public class AuthController {
     @Operation(summary = "Ends the current authentication")
     public ResponseEntity<Void> close(HttpServletRequest request, HttpServletResponse response) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof AccountUserDetails account) {
+            recordAudit.allowed(account.getAccountId(), "logout", "session", account.getAccountId().toString());
+        }
         new SecurityContextLogoutHandler().logout(request, response, authentication);
         return ResponseEntity.noContent().build();
     }

@@ -1,5 +1,7 @@
 package cd.gouv.finances.signalements.report.controller;
 
+import cd.gouv.finances.signalements.access.security.AccountUserDetails;
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.report.command.RequestImportCommand;
 import cd.gouv.finances.signalements.report.dto.ImportPageResponse;
 import cd.gouv.finances.signalements.report.dto.ImportRequest;
@@ -12,12 +14,13 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,6 +31,7 @@ public class ReportImportController {
 
     private final RequestImportCommand requestImportCommand;
     private final ReadImportsQuery readImportsQuery;
+    private final RecordAudit recordAudit;
 
     @GetMapping("/api/report-imports")
     @Operation(summary = "Lists report imports")
@@ -38,14 +42,20 @@ public class ReportImportController {
     @PostMapping("/api/report-imports/{id}/retry")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(summary = "Retries one report import")
-    public ImportResponse retry(@PathVariable UUID id) {
-        return requestImportCommand.retry(id);
+    public ImportResponse retry(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails account) {
+        var response = requestImportCommand.retry(id);
+        recordAudit.allowed(account.getAccountId(), "import", "import", response.id().toString());
+        return response;
     }
 
     @PostMapping("/api/report-imports")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(summary = "Imports reports for a period without duplicating them")
-    public ImportResponse create(@Valid @RequestBody ImportRequest request) {
-        return requestImportCommand.execute(request.start(), request.end());
+    public ImportResponse create(
+            @Valid @RequestBody ImportRequest request,
+            @AuthenticationPrincipal AccountUserDetails account) {
+        var response = requestImportCommand.execute(request.start(), request.end());
+        recordAudit.allowed(account.getAccountId(), "import", "import", response.id().toString());
+        return response;
     }
 }

@@ -4,5 +4,8 @@ public enum Role {
     AGENT,
     SUPERVISOR,
     AUDITOR,
-    ADMINISTRATOR
+    ADMINISTRATOR,
+    CELLULE,
+    CABINET,
+    PAYMASTER
 }

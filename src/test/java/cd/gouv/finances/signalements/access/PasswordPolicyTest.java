@@ -8,7 +8,7 @@ class PasswordPolicyTest {
 
     @Test
     void acceptsALongPasswordDifferentFromTheUsername() {
-        assertThat(PasswordPolicy.accepts("Signalements-dev-2026", "admin")).isTrue();
+        assertThat(PasswordPolicy.accepts("Unit-test-42safe", "admin")).isTrue();
     }
 
     @Test

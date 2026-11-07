@@ -31,6 +31,9 @@ public class ReportPhoto {
     @Column(nullable = false)
     private byte[] content;
 
+    @Column(length = 64)
+    private String fingerprint;
+
     protected ReportPhoto() {
     }
 
@@ -40,5 +43,9 @@ public class ReportPhoto {
         this.externalId = externalId;
         this.contentType = contentType;
         this.content = content.clone();
+    }
+
+    public void stamp(String fingerprint) {
+        this.fingerprint = fingerprint;
     }
 }

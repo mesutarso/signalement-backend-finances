@@ -2,6 +2,8 @@ package cd.gouv.finances.signalements.ocr.repository;
 
 import cd.gouv.finances.signalements.ocr.ReadingStatus;
 import cd.gouv.finances.signalements.ocr.entity.DocumentReading;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -12,4 +14,6 @@ public interface ReadingRepository extends JpaRepository<DocumentReading, UUID> 
     @EntityGraph(attributePaths = "fields")
     Optional<DocumentReading> findFirstByDocumentReferenceAndFingerprintAndStatusOrderByCreatedAtDesc(
             String documentReference, String fingerprint, ReadingStatus status);
+
+    List<DocumentReading> findByDocumentReferenceInOrderByCreatedAtDesc(Collection<String> documentReferences);
 }

@@ -1,14 +1,11 @@
 package cd.gouv.finances.signalements.ocr;
 
 public enum DocumentField {
-    DOCUMENT_TYPE("documentType"),
-    DOCUMENT_NUMBER("documentNumber"),
-    DOCUMENT_DATE("documentDate"),
-    SELLER_TAX_ID("sellerTaxId"),
     SELLER_NAME("sellerName"),
-    BUYER_TAX_ID("buyerTaxId"),
+    SELLER_TAX_ID("sellerTaxId"),
+    DOCUMENT_DATE("documentDate"),
     TOTAL_AMOUNT("totalAmount"),
-    CURRENCY("currency"),
+    DOCUMENT_NUMBER("documentNumber"),
     READ_CODE("readCode");
 
     private final String name;

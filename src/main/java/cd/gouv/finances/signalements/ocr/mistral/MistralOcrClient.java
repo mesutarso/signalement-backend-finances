@@ -5,13 +5,11 @@ import cd.gouv.finances.signalements.ocr.EngineUnavailable;
 import cd.gouv.finances.signalements.ocr.port.DocumentReader;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@Component
 public class MistralOcrClient implements DocumentReader {
 
     private final RestClient mistralRestClient;

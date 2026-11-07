@@ -55,10 +55,15 @@ class RequestReadingCommandTest {
                     reading.documentReference(),
                     reading.status().name(),
                     reading.quality() == null ? null : reading.quality().name(),
-                    "document-v1",
-                    reading.model(),
-                    reading.errorCode(),
-                    List.of());
+                    reading.confidence(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    reading.errorCode());
             return latest;
         }
     };

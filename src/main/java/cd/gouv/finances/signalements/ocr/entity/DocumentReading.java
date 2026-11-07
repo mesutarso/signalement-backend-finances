@@ -10,11 +10,13 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Table(name = "document_reading")
@@ -50,8 +52,16 @@ public class DocumentReading {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(precision = 4, scale = 3)
+    private BigDecimal confidence;
+
+    @BatchSize(size = 32)
     @OneToMany(mappedBy = "reading", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StoredField> fields = new ArrayList<>();
+
+    @BatchSize(size = 32)
+    @OneToMany(mappedBy = "reading", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ReadingArticle> articles = new ArrayList<>();
 
     protected DocumentReading() {
     }
@@ -77,8 +87,17 @@ public class DocumentReading {
         this.createdAt = createdAt;
     }
 
+    public void read(BigDecimal confidence) {
+        this.confidence = confidence;
+    }
+
     public void add(StoredField field) {
         fields.add(field);
         field.attach(this);
+    }
+
+    public void add(ReadingArticle article) {
+        articles.add(article);
+        article.attach(this);
     }
 }

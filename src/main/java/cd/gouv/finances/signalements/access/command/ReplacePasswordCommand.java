@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.access.command;
 
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.access.AccessRejected;
 import cd.gouv.finances.signalements.access.PasswordPolicy;
 import cd.gouv.finances.signalements.access.Role;
@@ -19,6 +20,7 @@ public class ReplacePasswordCommand {
 
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RecordAudit recordAudit;
 
     @PreAuthorize("isAuthenticated()")
     @Transactional
@@ -37,5 +39,6 @@ public class ReplacePasswordCommand {
             throw new AccessRejected("validation", 400);
         }
         account.changePassword(passwordEncoder.encode(request.password()));
+        recordAudit.allowed(caller.getAccountId(), "password", "account", accountId.toString());
     }
 }

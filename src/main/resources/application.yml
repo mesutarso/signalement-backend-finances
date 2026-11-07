@@ -10,6 +10,10 @@ server:
 spring:
   application:
     name: signalements
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 8MB
   session:
     timeout: 8h
     redis:
@@ -70,4 +74,7 @@ app:
       base-url: ${MISTRAL_BASE_URL:https://api.mistral.ai}
       api-key: ${MISTRAL_API_KEY:}
       model: ${MISTRAL_OCR_MODEL:mistral-ocr-latest}
+      timeout: 60s
+    herdys:
+      base-url: ${HERDYS_OCR_BASE_URL:}
       timeout: 60s
