@@ -6,10 +6,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-signalements}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://signalements-postgres:5432/${POSTGRES_DB:-signalements}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-signalements}
       SPRING_DATASOURCE_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES}
-      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_HOST: signalements-redis
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_DATA_REDIS_PASSWORD: ${SERVICE_PASSWORD_64_REDIS}
       APP_FRONTEND_ORIGIN: ${APP_FRONTEND_ORIGIN:?}
@@ -55,7 +55,9 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
     networks:
-      - data
+      data:
+        aliases:
+          - signalements-postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
@@ -71,7 +73,9 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - data
+      data:
+        aliases:
+          - signalements-redis
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
       interval: 10s
