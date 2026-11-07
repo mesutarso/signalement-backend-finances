@@ -21,8 +21,10 @@ Le backend démarre après les contrôles de santé des bases et applique Flyway
 
 Publier `Dockerfile`, `.dockerignore` et `docker-compose.production.yml` avant de lancer le déploiement. Déployer le backend avant le frontend. Les Dockerfiles sont construits avec Java 25 et Next.js standalone.
 
-## État de la préparation Coolify
+## État du déploiement
 
-Une ressource backend a été créée dans `TOMBOLA / production` : `kosvtovbg3uqgnpjzhetk6mn`. Aucun déploiement n’a été lancé. L’interface n’affichant plus le contenu des réglages, le chemin Compose de production n’a pas pu être confirmé après création. **Vérifier `/docker-compose.production.yml` avant tout déploiement ; ne pas utiliser le Compose de développement.** La ressource frontend et son domaine temporaire restent à finaliser. Les fichiers de préparation sont locaux et ne sont pas encore publiés dans Git.
+La version applicative et les fichiers de déploiement sont publiés sur `main` dans les deux dépôts. Les mots de passe PostgreSQL et Redis seront générés par Coolify. Le mot de passe administrateur initial est une variable de production privée, jamais une valeur dans Git.
 
-Validation locale : images frontend/backend construites, quatre services sains dans une stack isolée, appel frontend → backend par DNS Docker, données PostgreSQL/Redis conservées après remplacement des conteneurs et sauvegarde PostgreSQL créée avec le script fourni. La stack de test est ensuite supprimée.
+La ressource backend existe dans `TOMBOLA / production` : `kosvtovbg3uqgnpjzhetk6mn`. Aucun déploiement distant n’a été lancé. Confirmer `/docker-compose.production.yml` dans ses réglages avant le lancement ; ne pas utiliser le Compose de développement. Le frontend et son domaine temporaire restent à finaliser. Le contrôle Chrome n’affiche actuellement pas les réglages de la ressource backend.
+
+Validation locale : images frontend/backend construites ; quatre services sains dans une stack isolée ; communication frontend → backend par DNS Docker ; données PostgreSQL/Redis conservées après remplacement des conteneurs ; script de sauvegarde PostgreSQL vérifié. La stack de test est supprimée. Les 121 tests backend passent.
