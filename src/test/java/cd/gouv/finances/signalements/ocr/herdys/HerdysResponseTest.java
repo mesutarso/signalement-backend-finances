@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cd.gouv.finances.signalements.ocr.EngineUnavailable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.ObjectMapper;
 
 class HerdysResponseTest {
@@ -62,5 +64,14 @@ class HerdysResponseTest {
                 .isInstanceOf(EngineUnavailable.class)
                 .extracting(error -> ((EngineUnavailable) error).code())
                 .isEqualTo("unexpected-response");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"erreur\":\"échec\"}",
+            "{\"vendeur\":[],\"nif\":null,\"date\":null,\"montant\":null,\"numero\":null,\"code\":null}",
+            "{\"vendeur\":null,\"nif\":null,\"date\":null,\"montant\":null,\"numero\":null,\"code\":null,\"articles\":[12]}"})
+    void invalidProviderOutputNeverBecomesASuccessfulReading(String json) {
+        assertThatThrownBy(() -> HerdysResponse.read(mapper.readTree(json)))
+                .isInstanceOf(EngineUnavailable.class).hasMessage("unexpected-response");
     }
 }

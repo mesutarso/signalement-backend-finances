@@ -6,7 +6,14 @@ public enum DocumentField {
     DOCUMENT_DATE("documentDate"),
     TOTAL_AMOUNT("totalAmount"),
     DOCUMENT_NUMBER("documentNumber"),
-    READ_CODE("readCode");
+    READ_CODE("readCode"),
+    CURRENCY("currency"),
+    NET_AMOUNT("netAmount"),
+    VAT_AMOUNT("vatAmount"),
+    VAT_RATE("vatRate"),
+    PAID_AMOUNT("paidAmount"),
+    DEF_CODE("defCode"),
+    DEF_NUMBER("defNumber");
 
     private final String name;
 

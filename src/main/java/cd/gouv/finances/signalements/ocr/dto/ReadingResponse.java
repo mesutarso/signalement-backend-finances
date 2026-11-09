@@ -16,6 +16,15 @@ public record ReadingResponse(
         String amount,
         String documentNumber,
         String code,
+        String currency,
+        String netAmount,
+        String vatAmount,
+        String vatRate,
+        String paidAmount,
+        String defCode,
+        String defNumber,
+        String model,
+        String schemaVersion,
         List<ArticleResponse> articles,
         String errorCode) {
 }

@@ -37,6 +37,7 @@ public class ApiExceptionHandler {
             Map.entry("priority", "La priorité n'est pas acceptée."),
             Map.entry("empty", "Cette pièce est vide."),
             Map.entry("too-large", "Cette pièce est trop volumineuse."),
+            Map.entry("reading-in-progress", "Une lecture est déjà en cours pour cette pièce. Actualisez dans un instant."),
             Map.entry("rejected-type", "Ce type de pièce ne peut pas être lu."),
             Map.entry("missing-reference", "Cette pièce est introuvable."),
             Map.entry("request-open", "Une demande est déjà ouverte pour cette pièce. Actualisez."),
@@ -190,7 +191,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(DocumentRejected.class)
     ResponseEntity<ApiError> documentRejected(DocumentRejected rejected) {
-        return ResponseEntity.badRequest().body(error(rejected.code()));
+        return ResponseEntity.status("reading-in-progress".equals(rejected.code())
+                ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST).body(error(rejected.code()));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

@@ -6,7 +6,7 @@ import java.util.Optional;
 
 public interface ReadingStore {
 
-    Optional<ReadingResponse> alreadyRead(String documentReference, String fingerprint);
+    Optional<ReadingResponse> alreadyRead(String documentReference, String fingerprint, String model);
 
     ReadingResponse store(ReadingToStore reading);
 }

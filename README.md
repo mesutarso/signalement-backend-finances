@@ -13,7 +13,7 @@ Les tests : `./mvnw test`.
 
 La documentation de l'API est sur http://localhost:8080/scalar pendant que le serveur tourne.
 
-La clé Mistral reste dans `.env` de ce dossier. Le frontend ne l'a pas.
+La lecture des pièces utilise le service Flask de Herdys. Configurer son URL complète, le jeton partagé et le fournisseur selon [le guide OCR](OCR_HERDYS.md). Les clés fournisseurs résident dans Flask ; le frontend ne les reçoit pas.
 
 ## Imports FACNO
 

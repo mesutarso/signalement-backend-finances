@@ -1,0 +1,17 @@
+{
+  "vendeur": "Boutique de test",
+  "nif": "A1234567B",
+  "date": "2026-11-09",
+  "montant": "116.00",
+  "numero": "FAC-001",
+  "code": "VERIF-001",
+  "articles": [{"designation": "Article de test", "montant": "116.00"}],
+  "confiance": 0.86,
+  "devise": "USD",
+  "montant_ht": "100.00",
+  "tva": "16.00",
+  "taux_tva": "16",
+  "montant_paye": "120.00",
+  "code_def": "DEF-CODE",
+  "numero_def": "0000123"
+}

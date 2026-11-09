@@ -18,9 +18,9 @@ public class RequestPhotoReadingCommand {
     private final RequestReadingCommand requestReadingCommand;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
-    public PhotoReadingResponse execute(UUID reportId, UUID photoId) {
+    public PhotoReadingResponse execute(UUID reportId, UUID photoId, boolean refresh) {
         var photo = readReportPhotoQuery.execute(reportId, photoId);
-        var reading = requestReadingCommand.execute(photoId.toString(), photo.content(), mediaType(photo.contentType()));
+        var reading = requestReadingCommand.execute(photoId.toString(), photo.content(), mediaType(photo.contentType()), refresh);
         return PhotoReadingMapper.from(reading);
     }
 

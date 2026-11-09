@@ -12,8 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ReadingRepository extends JpaRepository<DocumentReading, UUID> {
 
     @EntityGraph(attributePaths = "fields")
-    Optional<DocumentReading> findFirstByDocumentReferenceAndFingerprintAndStatusOrderByCreatedAtDesc(
-            String documentReference, String fingerprint, ReadingStatus status);
+    Optional<DocumentReading> findFirstByDocumentReferenceAndFingerprintAndStatusAndSchemaVersionAndModelOrderByCreatedAtDesc(
+            String documentReference, String fingerprint, ReadingStatus status, String schemaVersion, String model);
 
     List<DocumentReading> findByDocumentReferenceInOrderByCreatedAtDesc(Collection<String> documentReferences);
 }

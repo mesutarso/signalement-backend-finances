@@ -23,6 +23,15 @@ public final class PhotoReadingMapper {
                 reading.amount(),
                 reading.documentNumber(),
                 reading.code(),
+                reading.currency(),
+                reading.netAmount(),
+                reading.vatAmount(),
+                reading.vatRate(),
+                reading.paidAmount(),
+                reading.defCode(),
+                reading.defNumber(),
+                reading.model(),
+                reading.schemaVersion(),
                 reading.articles().stream()
                         .map(article -> new PhotoArticleResponse(article.designation(), article.amount()))
                         .toList(),

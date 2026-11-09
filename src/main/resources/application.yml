@@ -77,4 +77,6 @@ app:
       timeout: 60s
     herdys:
       base-url: ${HERDYS_OCR_BASE_URL:}
-      timeout: 60s
+      api-token: ${HERDYS_OCR_API_TOKEN:}
+      model: ${HERDYS_OCR_MODEL:mistral}
+      timeout: ${HERDYS_OCR_TIMEOUT:200s}

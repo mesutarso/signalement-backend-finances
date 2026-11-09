@@ -26,6 +26,15 @@ public final class ReadingMapper {
                 value(reading, DocumentField.TOTAL_AMOUNT),
                 value(reading, DocumentField.DOCUMENT_NUMBER),
                 value(reading, DocumentField.READ_CODE),
+                value(reading, DocumentField.CURRENCY),
+                value(reading, DocumentField.NET_AMOUNT),
+                value(reading, DocumentField.VAT_AMOUNT),
+                value(reading, DocumentField.VAT_RATE),
+                value(reading, DocumentField.PAID_AMOUNT),
+                value(reading, DocumentField.DEF_CODE),
+                value(reading, DocumentField.DEF_NUMBER),
+                reading.getModel(),
+                reading.getSchemaVersion(),
                 reading.getArticles().stream()
                         .sorted(Comparator.comparingInt(ReadingArticle::getPosition))
                         .map(article -> new ArticleResponse(article.getDesignation(), article.getAmount()))

@@ -127,4 +127,26 @@ class ReportControllerTest {
                         .content("{\"decision\":\"reject\",\"justification\":\"Pas de manquement visible.\"}"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "AGENT")
+    void aReadingReusesTheCacheUnlessRefreshIsExplicit() throws Exception {
+        var reportId = java.util.UUID.randomUUID();
+        var photoId = java.util.UUID.randomUUID();
+        var path = "/api/reports/" + reportId + "/photos/" + photoId + "/readings";
+
+        mockMvc.perform(post(path).with(csrf())).andExpect(status().isOk());
+        org.mockito.Mockito.verify(requestPhotoReadingCommand).execute(reportId, photoId, false);
+        mockMvc.perform(post(path).param("refresh", "true").with(csrf())).andExpect(status().isOk());
+        org.mockito.Mockito.verify(requestPhotoReadingCommand).execute(reportId, photoId, true);
+    }
+
+    @Test
+    @WithMockUser(roles = "AUDITOR")
+    void anAuditorCannotTriggerAnOcrCall() throws Exception {
+        mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/photos/" + java.util.UUID.randomUUID() + "/readings")
+                        .param("refresh", "true").with(csrf()))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(requestPhotoReadingCommand);
+    }
 }

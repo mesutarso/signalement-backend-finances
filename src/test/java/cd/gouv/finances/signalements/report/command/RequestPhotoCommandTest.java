@@ -68,6 +68,15 @@ class RequestPhotoCommandTest {
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
                         List.of(),
                         null)));
         when(photoRequestRepository.nextNumber()).thenReturn(12L);

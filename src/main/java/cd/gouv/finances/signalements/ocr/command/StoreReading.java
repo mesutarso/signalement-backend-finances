@@ -24,10 +24,10 @@ public class StoreReading implements ReadingStore {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<ReadingResponse> alreadyRead(String documentReference, String fingerprint) {
+    public Optional<ReadingResponse> alreadyRead(String documentReference, String fingerprint, String model) {
         return readingRepository
-                .findFirstByDocumentReferenceAndFingerprintAndStatusOrderByCreatedAtDesc(
-                        documentReference, fingerprint, ReadingStatus.READ)
+                .findFirstByDocumentReferenceAndFingerprintAndStatusAndSchemaVersionAndModelOrderByCreatedAtDesc(
+                        documentReference, fingerprint, ReadingStatus.READ, DocumentContract.VERSION, model)
                 .map(ReadingMapper::toResponse);
     }
 

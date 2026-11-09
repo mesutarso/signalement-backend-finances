@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -21,20 +22,38 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RequestReadingCommand {
 
-    static final int MAX_SIZE = 8_000_000;
+    static final int MAX_SIZE = 5 * 1024 * 1024;
 
     private static final Set<String> ACCEPTED_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/webp", "application/pdf");
+            "image/jpeg", "image/png", "image/webp");
 
     private final DocumentReader documentReader;
     private final ReadingStore readingStore;
+    private final Set<String> activeDocuments = ConcurrentHashMap.newKeySet();
 
     public ReadingResponse execute(String documentReference, byte[] content, String mediaType) {
+        return execute(documentReference, content, mediaType, false);
+    }
+
+    public ReadingResponse execute(String documentReference, byte[] content, String mediaType, boolean refresh) {
         check(documentReference, content, mediaType);
+        if (!activeDocuments.add(documentReference)) {
+            throw new DocumentRejected("reading-in-progress");
+        }
+        try {
+            return read(documentReference, content, mediaType, refresh);
+        } finally {
+            activeDocuments.remove(documentReference);
+        }
+    }
+
+    private ReadingResponse read(String documentReference, byte[] content, String mediaType, boolean refresh) {
         var fingerprint = fingerprint(content);
-        var alreadyRead = readingStore.alreadyRead(documentReference, fingerprint);
-        if (alreadyRead.isPresent()) {
-            return alreadyRead.get();
+        if (!refresh) {
+            var alreadyRead = readingStore.alreadyRead(documentReference, fingerprint, documentReader.cacheModel());
+            if (alreadyRead.isPresent()) {
+                return alreadyRead.get();
+            }
         }
         try {
             var response = documentReader.read(content, mediaType);
@@ -57,7 +76,7 @@ public class RequestReadingCommand {
                     fingerprint,
                     ReadingStatus.FAILED,
                     null,
-                    null,
+                    documentReader.cacheModel(),
                     unavailable.code(),
                     null,
                     List.of(),

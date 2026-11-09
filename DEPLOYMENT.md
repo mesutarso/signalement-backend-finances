@@ -1,5 +1,7 @@
 # Backend et données — Coolify
 
+Le raccordement à l’application OCR privée est décrit dans [OCR_HERDYS.md](OCR_HERDYS.md). Les variables `HERDYS_OCR_API_TOKEN`, `HERDYS_OCR_MODEL` et `HERDYS_OCR_TIMEOUT` complètent l’URL déjà prévue. Leur présence dans le code ne signifie pas que le service est configuré en production.
+
 Source : `https://github.com/mesutarso/signalement-backend-finances.git`, branche `main`.
 
 Créer une application depuis ce dépôt avec le build Docker Compose. Répertoire `/`, fichier `/docker-compose.production.yml`. La stack contient backend, PostgreSQL 18 et Redis 8. Ne configurer aucun domaine ni port public pour cette stack.

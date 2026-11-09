@@ -16,8 +16,17 @@ public final class HerdysResponse {
     }
 
     public static EngineResponse read(JsonNode body) {
-        if (body == null || !body.isObject()) {
+        return read(body, "mistral");
+    }
+
+    public static EngineResponse read(JsonNode body, String model) {
+        if (body == null || !body.isObject() || body.has("erreur")) {
             throw new EngineUnavailable("unexpected-response");
+        }
+        for (var key : List.of("vendeur", "nif", "date", "montant", "numero", "code")) {
+            if (!body.has(key)) {
+                throw new EngineUnavailable("unexpected-response");
+            }
         }
         List<ExtractedField> fields = List.of(
                 field(body, "vendeur", DocumentField.SELLER_NAME),
@@ -25,8 +34,15 @@ public final class HerdysResponse {
                 field(body, "date", DocumentField.DOCUMENT_DATE),
                 field(body, "montant", DocumentField.TOTAL_AMOUNT),
                 field(body, "numero", DocumentField.DOCUMENT_NUMBER),
-                field(body, "code", DocumentField.READ_CODE));
-        return new EngineResponse("herdys", fields, articles(body.get("articles")), confidence(body.get("confiance")));
+                field(body, "code", DocumentField.READ_CODE),
+                field(body, "devise", DocumentField.CURRENCY),
+                field(body, "montant_ht", DocumentField.NET_AMOUNT),
+                field(body, "tva", DocumentField.VAT_AMOUNT),
+                field(body, "taux_tva", DocumentField.VAT_RATE),
+                field(body, "montant_paye", DocumentField.PAID_AMOUNT),
+                field(body, "code_def", DocumentField.DEF_CODE),
+                field(body, "numero_def", DocumentField.DEF_NUMBER));
+        return new EngineResponse("herdys-" + model, fields, articles(body.get("articles")), confidence(body.get("confiance")));
     }
 
     private static ExtractedField field(JsonNode body, String source, DocumentField field) {
@@ -37,7 +53,7 @@ public final class HerdysResponse {
         if (node == null || node.isNull()) {
             return List.of();
         }
-        if (!node.isArray()) {
+        if (!node.isArray() || node.size() > 1000) {
             throw new EngineUnavailable("unexpected-response");
         }
         var articles = new ArrayList<ExtractedArticle>();
@@ -45,7 +61,12 @@ public final class HerdysResponse {
             if (item == null || !item.isObject()) {
                 throw new EngineUnavailable("unexpected-response");
             }
-            articles.add(new ExtractedArticle(text(item.get("designation")), text(item.get("montant"))));
+            var designation = text(item.get("designation"));
+            var amount = text(item.get("montant"));
+            if ((designation != null && designation.length() > 400) || (amount != null && amount.length() > 64)) {
+                throw new EngineUnavailable("unexpected-response");
+            }
+            articles.add(new ExtractedArticle(designation, amount));
         }
         return List.copyOf(articles);
     }
@@ -70,11 +91,14 @@ public final class HerdysResponse {
         }
         if (node.isTextual()) {
             var value = node.asText().trim();
+            if (value.length() > 4096) {
+                throw new EngineUnavailable("unexpected-response");
+            }
             return value.isEmpty() ? null : value;
         }
         if (node.isNumber()) {
             return node.decimalValue().stripTrailingZeros().toPlainString();
         }
-        return null;
+        throw new EngineUnavailable("unexpected-response");
     }
 }

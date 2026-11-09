@@ -142,8 +142,10 @@ public class ReportController {
 
     @PostMapping("/api/reports/{id}/photos/{photoId}/readings")
     @Operation(summary = "Reads one report photo")
-    public PhotoReadingResponse readPhoto(@PathVariable UUID id, @PathVariable UUID photoId) {
-        return requestPhotoReadingCommand.execute(id, photoId);
+    public PhotoReadingResponse readPhoto(
+            @PathVariable UUID id, @PathVariable UUID photoId,
+            @RequestParam(defaultValue = "false") boolean refresh) {
+        return requestPhotoReadingCommand.execute(id, photoId, refresh);
     }
 
     @PostMapping("/api/reports/{id}/photos/{photoId}/requests")
