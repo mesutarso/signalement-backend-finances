@@ -4,6 +4,14 @@ Le raccordement à l’application OCR privée est décrit dans [OCR_HERDYS.md](
 
 Source : `https://github.com/mesutarso/signalement-backend-finances.git`, branche `main`.
 
+## Déploiement automatique
+
+L’application est reliée à la GitHub App déjà installée dans Coolify. **Deploy on push (webhooks)** est activé : un push sur `main` déclenche la construction du backend et la mise à jour de la stack existante. Vérifier le SHA du commit et le résultat dans les journaux de déploiement. Les volumes PostgreSQL et Redis et les alias privés sont conservés.
+
+Le backend et l’OCR restent privés ; seul le frontend possède un domaine public. Les variables `HERDYS_OCR_BASE_URL=http://signalements-ocr:5000/ocr`, `HERDYS_OCR_API_TOKEN`, `HERDYS_OCR_MODEL=mistral` et `HERDYS_OCR_TIMEOUT=200s` sont configurées dans Coolify. Les valeurs secrètes ne doivent pas être publiées dans Git.
+
+## Installation et réseau
+
 Créer une application depuis ce dépôt avec le build Docker Compose. Répertoire `/`, fichier `/docker-compose.production.yml`. La stack contient backend, PostgreSQL 18 et Redis 8. Ne configurer aucun domaine ni port public pour cette stack.
 
 Le réseau externe `coolify` doit exister sur le serveur et être partagé avec l’application frontend. L’alias privé du backend est `signalements-backend` ; le frontend utilise `BACKEND_URL=http://signalements-backend:8080`. PostgreSQL et Redis restent sur le réseau interne `data`, inaccessible au frontend. Le backend conserve une sortie Internet pour FACNO et la lecture des pièces.

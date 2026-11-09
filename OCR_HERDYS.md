@@ -42,6 +42,8 @@ Le README livré par Herdys demande la révocation d’anciennes clés. Ce point
 - Le backend de production atteint `/health` par le réseau Docker privé : réponse `{"statut":"ok"}` vérifiée depuis son conteneur.
 - Une lecture Mistral depuis le conteneur OCR privé a répondu en HTTP 200 en 2,8 secondes sur une facture générée en mémoire, entièrement fictive : TTC `116000.00 CDF`, HT `100000.00`, TVA `16000.00`, payé `120000.00`, numéro DEF `0000123` correctement extraits.
 - Les diagnostics, la variable de recette et la dépendance de génération temporaire ont été retirés après le test. Le code Flask n’a pas été modifié.
+- État final vérifié : `running:healthy`, aucun domaine ni port hôte publié, ancienne route publique en HTTP 404, frontend public en HTTPS 200. Voir [la preuve de recette](../deploy/ocr-verification-2026-11-09.json).
+- Dans Coolify 4.6, laisser le contrôle HTTP du tableau de bord désactivé (`health_check_enabled=false`) pour utiliser le `HEALTHCHECK` Python du Dockerfile. Le contrôle natif est bien détecté (`custom_healthcheck_found=true`) et Docker surveille toujours l’application ; activer le contrôle HTTP généré remplace ce contrôle natif dans cette version. Aucun outil supplémentaire n’a été ajouté à l’image.
 
 ## Contrat et conservation
 
