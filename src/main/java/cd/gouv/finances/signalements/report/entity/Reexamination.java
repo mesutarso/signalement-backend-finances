@@ -36,6 +36,9 @@ public class Reexamination {
     @Column(name = "received_on", nullable = false)
     private LocalDate receivedOn;
 
+    @Column(name = "on_time", nullable = false)
+    private boolean onTime;
+
     @Column(nullable = false, length = 16)
     private String status;
 
@@ -57,13 +60,14 @@ public class Reexamination {
     protected Reexamination() {
     }
 
-    public Reexamination(UUID id, String referenceCode, UUID reportId, String reportReference, String requestText, LocalDate receivedOn, UUID recordedBy, Instant recordedAt) {
+    public Reexamination(UUID id, String referenceCode, UUID reportId, String reportReference, String requestText, LocalDate receivedOn, boolean onTime, UUID recordedBy, Instant recordedAt) {
         this.id = id;
         this.referenceCode = referenceCode;
         this.reportId = reportId;
         this.reportReference = reportReference;
         this.requestText = requestText;
         this.receivedOn = receivedOn;
+        this.onTime = onTime;
         this.status = RECEIVED;
         this.recordedBy = recordedBy;
         this.recordedAt = recordedAt;

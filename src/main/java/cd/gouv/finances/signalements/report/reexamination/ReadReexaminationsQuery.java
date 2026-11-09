@@ -24,7 +24,7 @@ public class ReadReexaminationsQuery {
         var requested = Math.max(page, 0);
         var total = jdbc.queryForObject("select count(*) from app.reexamination", Long.class);
         var items = jdbc.query("""
-                select id, reference_code, report_reference, request_text, received_on, status, comment
+                select id, reference_code, report_reference, request_text, received_on, on_time, status, comment
                 from app.reexamination
                 order by recorded_at desc
                 limit ? offset ?
@@ -34,8 +34,9 @@ public class ReadReexaminationsQuery {
                 row.getString(3),
                 row.getString(4),
                 row.getDate(5).toLocalDate(),
-                row.getString(6),
-                row.getString(7)), SIZE, requested * (long) SIZE);
+                row.getBoolean(6),
+                row.getString(7),
+                row.getString(8)), SIZE, requested * (long) SIZE);
         return new ReexaminationPageResponse(items, requested, SIZE, total == null ? 0 : total);
     }
 }

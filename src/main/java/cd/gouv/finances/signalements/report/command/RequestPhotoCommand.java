@@ -4,6 +4,8 @@ import cd.gouv.finances.signalements.ocr.query.ReadDocumentReadingsQuery;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.dto.PhotoRequestResponse;
 import cd.gouv.finances.signalements.report.entity.PhotoRequest;
+import cd.gouv.finances.signalements.report.message.DeclarantMessageText;
+import cd.gouv.finances.signalements.report.message.MessageDrafts;
 import cd.gouv.finances.signalements.report.repository.PhotoRequestRepository;
 import cd.gouv.finances.signalements.report.repository.ReportPhotoRepository;
 import java.time.Clock;
@@ -24,6 +26,7 @@ public class RequestPhotoCommand {
     private final ReportPhotoRepository reportPhotoRepository;
     private final PhotoRequestRepository photoRequestRepository;
     private final ReadDocumentReadingsQuery readDocumentReadingsQuery;
+    private final MessageDrafts messageDrafts;
     private final Clock clock;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
@@ -34,6 +37,7 @@ public class RequestPhotoCommand {
         }
         var open = photoRequestRepository.findFirstByPhotoIdAndStatus(photoId, PhotoRequest.OPEN);
         if (open.isPresent()) {
+            messageDrafts.prepare(reportId, DeclarantMessageText.PHOTO, actorId);
             return response(open.get(), null);
         }
         var created = new PhotoRequest(
@@ -46,7 +50,9 @@ public class RequestPhotoCommand {
                 actorId,
                 clock.instant());
         try {
-            return response(photoRequestRepository.saveAndFlush(created), null);
+            var saved = photoRequestRepository.saveAndFlush(created);
+            messageDrafts.prepare(reportId, DeclarantMessageText.PHOTO, actorId);
+            return response(saved, null);
         } catch (DataIntegrityViolationException exception) {
             throw new ReportRejected("request-open", 409);
         }

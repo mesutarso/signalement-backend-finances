@@ -42,6 +42,9 @@ class AssessPrimeCommandTest {
     @Mock
     private ActiveRule activeRule;
 
+    @Mock
+    private PrimeLoss primeLoss;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-07T01:00:00Z"), ZoneOffset.UTC);
 
     @Test
@@ -51,7 +54,7 @@ class AssessPrimeCommandTest {
         when(primeRepository.findByDeclarantIdAndRuleVersion("user-1", PointsAward.RULE)).thenReturn(List.of());
         when(recordPayoutCommand.execute(any(), any())).thenReturn(Optional.empty());
         when(activeRule.requireActive()).thenReturn(ActiveRule.cdc());
-        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, clock);
+        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, primeLoss, clock);
 
         var changes = command.execute("user-1", UUID.randomUUID());
 
@@ -71,7 +74,7 @@ class AssessPrimeCommandTest {
         when(primeRepository.findByDeclarantIdAndRuleVersion("user-1", PointsAward.RULE)).thenReturn(new ArrayList<>(List.of(open)));
         when(recordPayoutCommand.execute(any(), any())).thenReturn(Optional.empty());
         when(activeRule.requireActive()).thenReturn(ActiveRule.cdc());
-        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, clock);
+        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, primeLoss, clock);
 
         var changes = command.execute("user-1", UUID.randomUUID());
 
@@ -89,7 +92,7 @@ class AssessPrimeCommandTest {
         when(primeRepository.findByDeclarantIdAndRuleVersion("user-1", PointsAward.RULE)).thenReturn(List.of(approved));
         when(recordPayoutCommand.execute(any(), any())).thenReturn(Optional.empty());
         when(activeRule.requireActive()).thenReturn(ActiveRule.cdc());
-        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, clock);
+        var command = new AssessPrimeCommand(primeContext, primeRepository, recordPayoutCommand, primeGuard, activeRule, primeLoss, clock);
 
         var changes = command.execute("user-1", UUID.randomUUID());
 

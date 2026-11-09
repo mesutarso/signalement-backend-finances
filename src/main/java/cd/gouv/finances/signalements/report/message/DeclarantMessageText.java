@@ -19,11 +19,18 @@ public final class DeclarantMessageText {
     private DeclarantMessageText() {
     }
 
-    public static String body(String kind, String reference) {
+    public static String pattern(String kind) {
         var pattern = PATTERNS.get(kind);
-        if (pattern == null || reference == null || reference.isBlank()) {
+        if (pattern == null) {
             throw new ReportRejected("message-kind", 400);
         }
-        return pattern.formatted(reference.trim());
+        return pattern;
+    }
+
+    public static String body(String kind, String reference) {
+        if (reference == null || reference.isBlank()) {
+            throw new ReportRejected("message-kind", 400);
+        }
+        return pattern(kind).formatted(reference.trim());
     }
 }

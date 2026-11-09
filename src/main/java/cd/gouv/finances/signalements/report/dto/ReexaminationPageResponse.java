@@ -6,6 +6,6 @@ import java.util.UUID;
 
 public record ReexaminationPageResponse(List<Item> items, int page, int size, long total) {
 
-    public record Item(UUID id, String reference, String reportReference, String requestText, LocalDate receivedOn, String status, String comment) {
+    public record Item(UUID id, String reference, String reportReference, String requestText, LocalDate receivedOn, boolean onTime, String status, String comment) {
     }
 }

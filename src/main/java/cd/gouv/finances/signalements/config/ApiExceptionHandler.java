@@ -142,6 +142,8 @@ public class ApiExceptionHandler {
             Map.entry("suspension-declarant", "Ce signalement n'a pas de déclarant identifiable."),
             Map.entry("suspension-state", "Le droit aux primes est déjà dans cet état."),
             Map.entry("prime-suspended", "Le droit aux primes est suspendu."),
+            Map.entry("prime-lost", "Cette prime est perdue : 90 jours se sont écoulés depuis le crédit sans numéro valide."),
+            Map.entry("model-body", "Le modèle contient la référence une seule fois."),
             Map.entry("handover-note", "La note est trop longue."),
             Map.entry("handover-absent", "Ce lot est introuvable."),
             Map.entry("handover-open", "Ce lot est déjà remis."),

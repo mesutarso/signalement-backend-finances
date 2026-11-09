@@ -17,13 +17,14 @@ public class PrepareDeclarantMessageCommand {
 
     private final ReportReference reportReference;
     private final DeclarantMessageRepository declarantMessageRepository;
+    private final MessageDrafts messageDrafts;
     private final Clock clock;
 
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
     public UUID execute(String reference, String kind, UUID actorId) {
         var report = reportReference.require(reference);
-        var body = DeclarantMessageText.body(kind, report.reference());
+        var body = messageDrafts.body(kind, report.reference());
         if (declarantMessageRepository.existsByReportIdAndKind(report.id(), kind)) {
             throw new ReportRejected("message-open", 409);
         }

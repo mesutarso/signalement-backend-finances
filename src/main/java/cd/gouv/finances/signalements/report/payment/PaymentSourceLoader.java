@@ -40,6 +40,7 @@ public class PaymentSourceLoader {
                       ) latest
                       where action = 'suspended'
                   )
+                  and (payout.lost_at is null)
                 order by prime.threshold, prime.id
                 """, (row, number) -> new Candidate(
                 row.getObject(1, UUID.class),

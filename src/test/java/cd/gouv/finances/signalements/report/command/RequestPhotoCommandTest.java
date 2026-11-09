@@ -11,6 +11,7 @@ import cd.gouv.finances.signalements.ocr.dto.ReadingResponse;
 import cd.gouv.finances.signalements.ocr.query.ReadDocumentReadingsQuery;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.entity.PhotoRequest;
+import cd.gouv.finances.signalements.report.message.MessageDrafts;
 import cd.gouv.finances.signalements.report.repository.PhotoRequestRepository;
 import cd.gouv.finances.signalements.report.repository.ReportPhotoRepository;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
@@ -37,6 +38,9 @@ class RequestPhotoCommandTest {
 
     @Mock
     private ReadDocumentReadingsQuery readDocumentReadingsQuery;
+
+    @Mock
+    private MessageDrafts messageDrafts;
 
     @Mock
     private ReportRepository reportRepository;
@@ -69,7 +73,7 @@ class RequestPhotoCommandTest {
         when(photoRequestRepository.nextNumber()).thenReturn(12L);
         when(photoRequestRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
         var command = new RequestPhotoCommand(
-                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, clock);
+                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts, clock);
 
         var created = command.execute(reportId, photoId, "  La photo est floue.  ", actorId);
 
@@ -97,7 +101,7 @@ class RequestPhotoCommandTest {
         when(reportPhotoRepository.existsByIdAndReport_Id(photoId, reportId)).thenReturn(true);
         when(photoRequestRepository.findFirstByPhotoIdAndStatus(photoId, PhotoRequest.OPEN)).thenReturn(Optional.of(existing));
         var command = new RequestPhotoCommand(
-                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, clock);
+                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts, clock);
 
         var again = command.execute(reportId, photoId, "Autre motif", UUID.randomUUID());
 

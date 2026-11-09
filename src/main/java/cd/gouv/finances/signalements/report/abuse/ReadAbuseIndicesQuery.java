@@ -21,7 +21,8 @@ public class ReadAbuseIndicesQuery {
     static final String SERIES = "Plus de cinq signalements ont été déposés le même jour. Cet indice n'est pas une preuve de fraude.";
     static final String ACCOUNTS = "Plusieurs comptes portent le même numéro. Les comptes ne sont pas fusionnés. Cet indice n'est pas une preuve de fraude.";
     static final String RETOUCH = "La détection des photos retouchées n'est pas disponible.";
-    static final String SCORE = "Le cahier ne donne pas le calcul du score de fiabilité.";
+    static final int SCORE_START = 100;
+    static final int SCORE_STEP = 20;
     private static final int SIZE = 20;
 
     private final JdbcTemplate jdbc;
@@ -113,7 +114,21 @@ public class ReadAbuseIndicesQuery {
     }
 
     private AbuseIndexPageResponse page(java.util.List<AbuseIndexResponse> indices, int requested, long total) {
-        return new AbuseIndexPageResponse(indices, series(), accounts(), RETOUCH, SCORE, requested, SIZE, total);
+        var series = series();
+        var accounts = accounts();
+        var score = SCORE_START;
+        if (!indices.isEmpty()) {
+            score -= SCORE_STEP;
+        }
+        if (!series.isEmpty()) {
+            score -= SCORE_STEP;
+        }
+        if (!accounts.isEmpty()) {
+            score -= SCORE_STEP;
+        }
+        var text = "Score de fiabilité : " + score
+                + ". Départ 100, moins 20 pour chaque famille d'indice présente sur cette page. Ce score n'est pas une preuve de fraude.";
+        return new AbuseIndexPageResponse(indices, series, accounts, RETOUCH, text, requested, SIZE, total);
     }
 
     private java.util.List<SeriesIndexResponse> series() {

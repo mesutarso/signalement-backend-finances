@@ -25,6 +25,10 @@ Publier `Dockerfile`, `.dockerignore` et `docker-compose.production.yml` avant d
 
 La version applicative et les fichiers de déploiement sont publiés sur `main` dans les deux dépôts. Les mots de passe PostgreSQL et Redis seront générés par Coolify. Le mot de passe administrateur initial est une variable de production privée, jamais une valeur dans Git.
 
-La ressource backend existe dans `TOMBOLA / production` : `kosvtovbg3uqgnpjzhetk6mn`. Aucun déploiement distant n’a été lancé. Confirmer `/docker-compose.production.yml` dans ses réglages avant le lancement ; ne pas utiliser le Compose de développement. Le frontend et son domaine temporaire restent à finaliser. Le contrôle Chrome n’affiche actuellement pas les réglages de la ressource backend.
+Déploiement vérifié le 7 novembre 2026 dans `TOMBOLA / production` : backend `kosvtovbg3uqgnpjzhetk6mn`, frontend `yl0jdaj9bukjf7frcc00htkg`. Les deux applications sont saines. Le frontend est disponible sur `https://signalements.72.62.16.125.sslip.io` avec un certificat valide. La connexion administrateur et les pages Signalements, Indicateurs, Imports et Comptes ont été vérifiées en HTTPS.
+
+Le backend utilise le mode Docker Compose géré par Coolify, fichier `/docker-compose.production.yml`, sans domaine ni port public. Ne pas activer la connexion automatique de tous les services au réseau prédéfini : seul le backend rejoint explicitement `coolify`. Les alias `signalements-postgres` et `signalements-redis` évitent les conflits DNS avec les autres applications du serveur. Les volumes existants sont `kosvtovbg3uqgnpjzhetk6mn_postgres-data` et `kosvtovbg3uqgnpjzhetk6mn_redis-data`. Les 36 migrations sont validées au démarrage. La tâche temporaire de diagnostic a été supprimée.
+
+FACNO est configuré et le planning d’import est activé. Les paramètres optionnels Mistral et Herdys ne sont pas renseignés ; aucune valeur n’était fournie localement. Les sauvegardes automatiques hors serveur restent à configurer.
 
 Validation locale : images frontend/backend construites ; quatre services sains dans une stack isolée ; communication frontend → backend par DNS Docker ; données PostgreSQL/Redis conservées après remplacement des conteneurs ; script de sauvegarde PostgreSQL vérifié. La stack de test est supprimée. Les 121 tests backend passent.

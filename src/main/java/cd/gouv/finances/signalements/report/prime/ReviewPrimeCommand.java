@@ -24,6 +24,7 @@ public class ReviewPrimeCommand {
     private final RecordPayoutCommand recordPayoutCommand;
     private final PrimeContext primeContext;
     private final PrimeGuard primeGuard;
+    private final PrimeLoss primeLoss;
     private final Clock clock;
 
     public record Outcome(String action, UUID payoutId) {
@@ -50,6 +51,9 @@ public class ReviewPrimeCommand {
         var now = clock.instant();
         var payoutId = recordPayoutCommand.execute(prime.getDeclarantId(), actorId).orElse(null);
         if (PrimeReview.APPROVED.equals(decision)) {
+            if (primeLoss.capture(prime.getDeclarantId(), now)) {
+                throw new ReportRejected("prime-lost", 409);
+            }
             if (primeGuard.suspended(prime.getDeclarantId())) {
                 throw new ReportRejected("prime-suspended", 409);
             }

@@ -47,6 +47,9 @@ class ReviewPrimeCommandTest {
     @Mock
     private PrimeGuard primeGuard;
 
+    @Mock
+    private PrimeLoss primeLoss;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-07T01:00:00Z"), ZoneOffset.UTC);
 
     @Test
@@ -121,7 +124,7 @@ class ReviewPrimeCommandTest {
     }
 
     private ReviewPrimeCommand command() {
-        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeContext, primeGuard, clock);
+        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeContext, primeGuard, primeLoss, clock);
     }
 
     private Prime proposed() {

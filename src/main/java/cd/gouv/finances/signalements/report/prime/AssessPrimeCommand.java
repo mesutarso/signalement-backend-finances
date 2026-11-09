@@ -21,6 +21,7 @@ public class AssessPrimeCommand {
     private final RecordPayoutCommand recordPayoutCommand;
     private final PrimeGuard primeGuard;
     private final ActiveRule activeRule;
+    private final PrimeLoss primeLoss;
     private final Clock clock;
 
     public record Change(UUID id, String action) {
@@ -42,7 +43,7 @@ public class AssessPrimeCommand {
         var changes = new ArrayList<Change>();
         recordPayoutCommand.execute(declarant, actorId).ifPresent(id -> changes.add(new Change(id, "payout-record")));
         var now = clock.instant();
-        if (primeGuard.suspended(declarant)) {
+        if (primeLoss.capture(declarant, now) || primeGuard.suspended(declarant)) {
             withdrawUnpaid(primeRepository.findByDeclarantId(declarant), actorId, now, changes);
             return List.copyOf(changes);
         }
