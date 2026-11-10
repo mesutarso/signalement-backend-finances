@@ -56,6 +56,9 @@ management:
       show-details: never
 
 app:
+  letters:
+    automation-username: ${LETTERS_AUTOMATION_USERNAME:${ACCESS_ADMIN_USERNAME:}}
+    cron: ${LETTERS_CRON:0 0 7 * * MON}
   frontend-origin: ${APP_FRONTEND_ORIGIN:http://localhost:3000}
   documentation-open: ${APP_DOCUMENTATION_OPEN:true}
   access:

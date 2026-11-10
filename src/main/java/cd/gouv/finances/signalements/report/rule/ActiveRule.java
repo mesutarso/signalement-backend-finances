@@ -30,6 +30,22 @@ public class ActiveRule {
         return withTiers(rows.getFirst());
     }
 
+    public Snapshot requireForReport(UUID reportId) {
+        var codes = jdbc.queryForList("""
+                select coalesce(
+                    (select movement.rule_version from app.point_movement movement
+                     where movement.report_id = report.id and movement.kind = 'credit'
+                     order by movement.recorded_at, movement.id limit 1),
+                    (select activation.rule_code from app.rule_activation activation
+                     where activation.activated_at <= report.reported_at at time zone 'Africa/Kinshasa'
+                     order by activation.activated_at desc, activation.id desc limit 1),
+                    'cdc-2026-10-28')
+                from app.report report where report.id = ?
+                """, String.class, reportId);
+        if (codes.isEmpty()) throw new ReportRejected("report-absent", 404);
+        return require(codes.getFirst());
+    }
+
     public Snapshot require(String code) {
         var rows = jdbc.query("""
                 select id, code, fake_invoice, missing_transmission, understated, non_normalized, refusal,

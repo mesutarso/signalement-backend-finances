@@ -36,6 +36,9 @@ public class Letter {
     @Column(length = 160)
     private String recipient;
 
+    @Column(name = "service_name", nullable = false, length = 160)
+    private String serviceName = "";
+
     @Column(length = 500)
     private String reason;
 

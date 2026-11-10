@@ -50,6 +50,9 @@ class ReviewPrimeCommandTest {
     @Mock
     private PrimeLoss primeLoss;
 
+    @Mock
+    private BeneficiaryRegistry beneficiaries;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-07T01:00:00Z"), ZoneOffset.UTC);
 
     @Test
@@ -124,7 +127,23 @@ class ReviewPrimeCommandTest {
     }
 
     private ReviewPrimeCommand command() {
-        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeContext, primeGuard, primeLoss, clock);
+        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeContext, primeGuard, primeLoss, beneficiaries, clock);
+    }
+
+    @Test
+    void checksTheActorsOfThePrimeRuleAndTheSharedBeneficiaryCeiling() {
+        var prime = new Prime(UUID.randomUUID(), "user-1", "0990000001", "new-rule", 30, 10000, UUID.randomUUID(), clock.instant());
+        var reviewer = UUID.randomUUID();
+        when(primeRepository.findById(prime.getId())).thenReturn(Optional.of(prime));
+        when(recordPayoutCommand.execute("user-1", reviewer)).thenReturn(Optional.empty());
+        when(payoutNumberRepository.findByDeclarantId("user-1")).thenReturn(Optional.of(payout(prime.getPhone())));
+        when(primeContext.findingActors("user-1", "new-rule")).thenReturn(List.of(UUID.randomUUID()));
+
+        command().execute(prime.getId(), "approved", null, reviewer);
+
+        verify(beneficiaries).lock();
+        verify(beneficiaries).requireCapacity(prime);
+        assertThat(prime.getStatus()).isEqualTo(Prime.APPROVED);
     }
 
     private Prime proposed() {

@@ -46,4 +46,12 @@ class QualificationRulesTest {
         var confirmed = QualificationRules.accept("confirm", "refusal", "authority", false, null, "DGI-1", true);
         assertThat(confirmed.reference()).isEqualTo("DGI-1");
     }
+
+    @Test
+    void aRefusalKeepsSellerEvidenceThroughTheAuthorityReview() {
+        assertThat(QualificationRules.accept("wait", "refusal", "pending", true, "Confirmation DGI", null, false).decision())
+                .isEqualTo("wait");
+        assertThat(QualificationRules.accept("confirm", "refusal", "authority", true, null, "DGI-1", true).decision())
+                .isEqualTo("confirm");
+    }
 }

@@ -32,6 +32,10 @@ public class LetterSourceLoader {
                 join app.report report on report.id = qualification.report_id
                 where qualification.decision in ('confirm', 'wait')
                   and nullif(trim(qualification.seller_tax_id), '') is not null
+                  and not exists (
+                    select 1 from app.letter_line line join app.letter letter on letter.id = line.letter_id
+                    where line.report_id = report.id and letter.status = 'validated'
+                      and letter.prepared_at >= qualification.recorded_at)
                 order by lower(trim(qualification.seller_tax_id)), report.reference_code
                 """, (row, number) -> new Source(
                 row.getObject(1, UUID.class),

@@ -57,6 +57,10 @@ public final class PointsAward {
     }
 
     public static Award assess(Claim claim, Scale scale) {
+        if (claim.filedOn() == null || claim.filedOn().isBefore(LocalDate.of(2026, 10, 1))
+                || claim.filedOn().isAfter(LocalDate.of(2027, 4, 30))) {
+            throw new ReportRejected("points-period", 409);
+        }
         if (!"confirm".equals(claim.decision())) {
             throw new ReportRejected("points-qualification", 409);
         }

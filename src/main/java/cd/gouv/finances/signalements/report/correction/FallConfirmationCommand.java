@@ -34,6 +34,7 @@ public class FallConfirmationCommand {
             throw new ReportRejected("correction-reason", 400);
         }
         var report = reportReference.require(reference);
+        pointsContext.lock();
         var rows = jdbc.query("""
                 select id, decision
                 from app.qualification
@@ -61,6 +62,11 @@ public class FallConfirmationCommand {
                   and ticket.excluded_at is null
                   and not exists (select 1 from app.draw_prize prize where prize.ticket_id = ticket.id)
                 """, Timestamp.from(now), report.id());
+        // Close the old finding as well: a replay must not credit or ticket it again.
+        jdbc.update("""
+                insert into app.qualification (id, report_id, decision, justification, actor_id, recorded_at)
+                values (?, ?, 'reject', ?, ?, ?)
+                """, UUID.randomUUID(), report.id(), keptReason, actorId, Timestamp.from(now));
         return correction.getId();
     }
 

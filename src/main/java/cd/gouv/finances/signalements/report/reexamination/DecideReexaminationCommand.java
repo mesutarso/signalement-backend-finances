@@ -16,6 +16,7 @@ public class DecideReexaminationCommand {
 
     private final ReexaminationRepository reexaminationRepository;
     private final Clock clock;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
@@ -31,6 +32,12 @@ public class DecideReexaminationCommand {
         var reexamination = reexaminationRepository.findById(id).orElseThrow(() -> new ReportRejected("reexamination-absent", 404));
         if (!Reexamination.RECEIVED.equals(reexamination.getStatus())) {
             throw new ReportRejected("reexamination-decided", 409);
+        }
+        if (Reexamination.MODIFIED.equals(kept)) {
+            var corrected = jdbc.queryForObject("""
+                    select exists(select 1 from app.qualification where report_id = ? and recorded_at > ?)
+                    """, Boolean.class, reexamination.getReportId(), java.sql.Timestamp.from(reexamination.getRecordedAt()));
+            if (!Boolean.TRUE.equals(corrected)) throw new ReportRejected("reexamination-correction", 409);
         }
         reexamination.decide(kept, note.isEmpty() ? null : note, actorId, clock.instant());
         return reexamination.getReportId();

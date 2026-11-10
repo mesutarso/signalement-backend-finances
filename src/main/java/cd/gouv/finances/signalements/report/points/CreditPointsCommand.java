@@ -30,8 +30,9 @@ public class CreditPointsCommand {
         if (keptReference.isEmpty() || keptReference.length() > 80) {
             throw new ReportRejected("points-reference", 400);
         }
+        pointsContext.lock();
         var claim = pointsContext.claim(reportId);
-        var rule = activeRule.requireActive();
+        var rule = activeRule.requireForReport(reportId);
         var award = PointsAward.assess(claim, rule.scale());
         pointMovementRepository.save(new PointMovement(
                 UUID.randomUUID(),

@@ -54,7 +54,7 @@ public class ReadPrimesQuery {
         if (declarantId.isBlank()) {
             return empty();
         }
-        var rule = activeRule.requireActive();
+        var rule = activeRule.requireForReport(reportId);
         var net = primeContext.netPoints(declarantId, rule.code());
         var phone = recordedPhone(declarantId);
         var rows = jdbc.query("""

@@ -1,6 +1,7 @@
 package cd.gouv.finances.signalements.report.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,9 @@ class RecordQualificationCommandTest {
     @Mock
     private QualificationRepository qualificationRepository;
 
+    @Mock
+    private cd.gouv.finances.signalements.report.points.PointsContext pointsContext;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-06T22:00:00Z"), ZoneOffset.UTC);
 
     @Test
@@ -36,7 +40,7 @@ class RecordQualificationCommandTest {
         var reportId = UUID.randomUUID();
         when(reportRepository.existsById(reportId)).thenReturn(true);
         when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(reportId)).thenReturn(List.of());
-        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, clock);
+        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, pointsContext, clock);
 
         command.execute(reportId, request("confirm", "non-normalized", "photo", "La facture n'est pas normalisée.", "A0001"), UUID.randomUUID());
 
@@ -69,12 +73,46 @@ class RecordQualificationCommandTest {
                 clock.instant());
         when(reportRepository.existsById(reportId)).thenReturn(true);
         when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(reportId)).thenReturn(List.of(existing));
-        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, clock);
+        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, pointsContext, clock);
 
         command.execute(reportId, request("reject", null, null, "Pas de manquement visible.", null), UUID.randomUUID());
 
         verify(qualificationRepository, never()).save(any());
         verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void keepsTheSellerWhileWaitingAndAfterTheDgiConfirmsARefusal() {
+        var reportId = UUID.randomUUID();
+        var actor = UUID.randomUUID();
+        when(reportRepository.existsById(reportId)).thenReturn(true);
+        var waiting = new Qualification(UUID.randomUUID(), reportId, "wait", "refusal", "pending", "Attente DGI",
+                "Vendeur", "A0001", null, null, null, null, "Confirmation DGI", null, actor, clock.instant());
+        when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(reportId)).thenReturn(List.of(waiting));
+        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, pointsContext, clock);
+
+        command.execute(reportId, new RecordQualificationCommand.QualificationRequest("confirm", "refusal", "authority",
+                "Refus confirmé", null, null, null, null, null, null, null, "DGI-1"), actor);
+
+        var saved = ArgumentCaptor.forClass(Qualification.class);
+        verify(qualificationRepository).save(saved.capture());
+        assertThat(saved.getValue().getSellerTaxId()).isEqualTo("A0001");
+        assertThat(saved.getValue().getSellerName()).isEqualTo("Vendeur");
+        assertThat(saved.getValue().getDgiReference()).isEqualTo("DGI-1");
+    }
+
+    @Test
+    void requiresTracedReversalBeforeReplacingACreditedFinding() {
+        var id = UUID.randomUUID();
+        when(reportRepository.existsById(id)).thenReturn(true);
+        when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
+        when(qualificationRepository.hasCreditedPoints(id)).thenReturn(true);
+        var command = new RecordQualificationCommand(reportRepository, qualificationRepository, pointsContext, clock);
+
+        assertThatThrownBy(() -> command.execute(id, request("reject", null, null, "À corriger", null), UUID.randomUUID()))
+                .isInstanceOf(cd.gouv.finances.signalements.report.ReportRejected.class)
+                .hasMessage("qualification-credited");
+        verify(qualificationRepository, never()).save(any());
     }
 
     private static RecordQualificationCommand.QualificationRequest request(

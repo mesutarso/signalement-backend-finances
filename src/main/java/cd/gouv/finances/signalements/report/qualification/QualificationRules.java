@@ -33,7 +33,7 @@ public final class QualificationRules {
             String reference,
             boolean waiting) {
         if ("wait".equals(decision)) {
-            if (!REFUSAL.equals(finding) || !PENDING.equals(proof) || corrected || reference != null) {
+            if (!REFUSAL.equals(finding) || !PENDING.equals(proof) || reference != null) {
                 throw new ReportRejected("qualification-finding", 400);
             }
             if (missing == null) {
@@ -60,7 +60,7 @@ public final class QualificationRules {
             if (!waiting) {
                 throw new ReportRejected("qualification-waiting", 400);
             }
-            if (!AUTHORITY.equals(proof) || reference == null || corrected || missing != null) {
+            if (!AUTHORITY.equals(proof) || reference == null || missing != null) {
                 throw new ReportRejected(reference == null ? "qualification-reference" : "qualification-finding", 400);
             }
             return new Accepted("confirm", REFUSAL, AUTHORITY, null, reference);

@@ -54,6 +54,10 @@ public class PointsContext {
                 net(reportId));
     }
 
+    public void lock() {
+        jdbc.queryForObject("select pg_advisory_xact_lock(783962142)", Object.class);
+    }
+
     public int net(UUID reportId) {
         var net = jdbc.queryForObject(
                 "select coalesce(sum(base_points + bonus_points), 0) from app.point_movement where report_id = ?",

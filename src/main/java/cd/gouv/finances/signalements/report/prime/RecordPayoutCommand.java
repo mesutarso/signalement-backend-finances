@@ -1,7 +1,6 @@
 package cd.gouv.finances.signalements.report.prime;
 
 import cd.gouv.finances.signalements.report.entity.PayoutNumber;
-import cd.gouv.finances.signalements.report.points.PointsAward;
 import cd.gouv.finances.signalements.report.repository.PayoutNumberRepository;
 import java.time.Clock;
 import java.util.Optional;
@@ -26,7 +25,7 @@ public class RecordPayoutCommand {
             return Optional.empty();
         }
         var declarant = declarantId.trim();
-        var phone = primeContext.phone(declarant, PointsAward.RULE);
+        var phone = primeContext.phone(declarant, null);
         var now = clock.instant();
         var existing = payoutNumberRepository.findByDeclarantId(declarant);
         if (existing.isEmpty()) {

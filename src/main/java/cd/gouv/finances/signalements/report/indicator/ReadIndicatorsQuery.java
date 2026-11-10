@@ -58,7 +58,7 @@ public class ReadIndicatorsQuery {
                 received(from, to),
                 treated(from, to),
                 findings(from, to, finding),
-                dated("select count(*) from app.letter where status = 'validated'", "decided_at", from, to),
+                dated("select count(*) from app.letter_dispatch where true", "sent_on", from, to),
                 dated("select count(*) from app.letter_response where true", "received_on", from, to),
                 points(from, to),
                 dated("select count(*) from app.prime where true", "recorded_at", from, to),
@@ -144,7 +144,7 @@ public class ReadIndicatorsQuery {
         if (from == null) {
             return count(sql);
         }
-        var dateColumn = "received_on".equals(column);
+        var dateColumn = "received_on".equals(column) || "sent_on".equals(column);
         if (dateColumn) {
             return count(sql + " and " + column + " >= ? and " + column + " <= ?", from, to);
         }

@@ -20,11 +20,13 @@ public class RecordQualificationCommand {
 
     private final ReportRepository reportRepository;
     private final QualificationRepository qualificationRepository;
+    private final cd.gouv.finances.signalements.report.points.PointsContext pointsContext;
     private final Clock clock;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
     @Transactional
     public void execute(UUID reportId, QualificationRequest request, UUID actorId) {
+        pointsContext.lock();
         if (!reportRepository.existsById(reportId)) {
             throw new ReportRejected("report-absent", 404);
         }
@@ -36,7 +38,9 @@ public class RecordQualificationCommand {
         var issued = date(blank(request.issuedOn()));
         var corrected = seller != null || taxId != null || amount != null || number != null || code != null || issued != null;
         var latest = qualificationRepository.findByReportIdOrderByRecordedAtDesc(reportId);
-        var waiting = !latest.isEmpty() && "wait".equals(latest.getFirst().getDecision());
+        var waiting = !latest.isEmpty() && ("wait".equals(latest.getFirst().getDecision())
+                || ("confirm".equals(latest.getFirst().getDecision()) && "refusal".equals(latest.getFirst().getFinding())
+                    && java.util.Objects.equals(latest.getFirst().getDgiReference(), blank(request.dgiReference()))));
         var accepted = QualificationRules.accept(
                 request.decision(),
                 blank(request.finding()),
@@ -46,7 +50,17 @@ public class RecordQualificationCommand {
                 blank(request.dgiReference()),
                 waiting);
         var justification = request.justification().trim();
-        var keepsCorrection = "confirm".equals(accepted.decision()) && accepted.reference() == null;
+        // The seller must remain identifiable while a refusal goes to the DGI and back.
+        if (waiting && "confirm".equals(accepted.decision()) && accepted.reference() != null) {
+            var previous = latest.getFirst();
+            seller = seller == null ? previous.getSellerName() : seller;
+            taxId = taxId == null ? previous.getSellerTaxId() : taxId;
+            issued = issued == null ? previous.getIssuedOn() : issued;
+            amount = amount == null ? previous.getAmount() : amount;
+            number = number == null ? previous.getDocumentNumber() : number;
+            code = code == null ? previous.getCode() : code;
+        }
+        var keepsCorrection = !"reject".equals(accepted.decision());
         var sellerName = keepsCorrection ? seller : null;
         var sellerTaxId = keepsCorrection ? taxId : null;
         var issuedOn = keepsCorrection ? issued : null;
@@ -67,6 +81,9 @@ public class RecordQualificationCommand {
                 accepted.missing(),
                 accepted.reference())) {
             return;
+        }
+        if (qualificationRepository.hasCreditedPoints(reportId)) {
+            throw new ReportRejected("qualification-credited", 409);
         }
         qualificationRepository.save(new Qualification(
                 UUID.randomUUID(),

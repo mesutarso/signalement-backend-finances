@@ -36,6 +36,9 @@ class FallConfirmationCommandTest {
     @Mock
     private ReversePointsCommand reversePointsCommand;
 
+    @Mock
+    private cd.gouv.finances.signalements.report.points.PointsContext pointsContext;
+
     @Test
     void refusesWhenTheLatestDecisionIsNotAConfirmation() {
         var reportId = UUID.randomUUID();
@@ -45,7 +48,7 @@ class FallConfirmationCommandTest {
                 jdbc,
                 reportReference,
                 decisionCorrectionRepository,
-                null,
+                pointsContext,
                 reversePointsCommand,
                 Clock.fixed(Instant.parse("2026-11-07T12:00:00Z"), ZoneOffset.UTC));
 

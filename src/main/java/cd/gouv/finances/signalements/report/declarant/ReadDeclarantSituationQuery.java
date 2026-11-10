@@ -30,7 +30,7 @@ public class ReadDeclarantSituationQuery {
         var match = reportReference.require(reference);
         var declarant = jdbc.queryForObject("select nullif(btrim(reporter_user_id), '') from app.report where id = ?", String.class, match.id());
         var reports = reports(match.id(), declarant);
-        var rule = activeRule.requireActive();
+        var rule = activeRule.requireForReport(match.id());
         var points = declarant == null ? reportPoints(match.id()) : sum("""
                 select coalesce(sum(base_points + bonus_points), 0) from app.point_movement where declarant_id = ? and rule_version = ?
                 """, declarant, rule.code());

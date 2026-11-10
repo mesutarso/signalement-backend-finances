@@ -35,12 +35,17 @@ public class OrganizeDrawCommand {
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
     public UUID execute(String kind, LocalDate month, String witness, int campaign, int intermediate, int motorcycles, int cars, UUID actorId) {
+        jdbc.queryForObject("select pg_advisory_xact_lock(783962143)", Object.class);
         var drawKind = DrawTicket.FINAL.equals(kind) ? DrawTicket.FINAL : DrawTicket.MONTHLY.equals(kind) ? DrawTicket.MONTHLY : "";
         if (drawKind.isEmpty()) {
             throw new ReportRejected("draw-kind", 400);
         }
         var period = DrawTicket.FINAL.equals(drawKind) ? LocalDate.of(2027, 4, 1) : month;
         if (period == null || period.getDayOfMonth() != 1) {
+            throw new ReportRejected("draw-month", 400);
+        }
+        if (period.isBefore(LocalDate.of(2026, 11, 1)) || period.isAfter(LocalDate.of(2027, 4, 1))
+                || (DrawTicket.FINAL.equals(drawKind) && LocalDate.now(clock.withZone(KINSHASA)).isBefore(period))) {
             throw new ReportRejected("draw-month", 400);
         }
         var keptWitness = witness == null ? "" : witness.trim();
@@ -55,14 +60,17 @@ public class OrganizeDrawCommand {
             throw new ReportRejected("draw-open", 409);
         }
         var tickets = jdbc.query("""
-                select id, person_key, report_reference
-                from app.draw_ticket
-                where kind = ? and period_start = ? and excluded_at is null
-                order by report_reference, id
+                select ticket.id, account.beneficiary_key, ticket.report_reference
+                from app.draw_ticket ticket
+                join app.report report on report.id = ticket.report_id
+                left join app.beneficiary_account account on account.declarant_id = btrim(report.reporter_user_id)
+                where ticket.kind = ? and ticket.period_start = ? and ticket.excluded_at is null
+                order by ticket.report_reference, ticket.id
                 """, (row, number) -> new Holder(row.getObject(1, UUID.class), row.getString(2), row.getString(3)), drawKind, period);
         if (tickets.isEmpty()) {
             throw new ReportRejected("draw-tickets", 404);
         }
+        if (tickets.stream().anyMatch(ticket -> ticket.personKey() == null)) throw new ReportRejected("draw-identity", 409);
         var year = LocalDate.now(clock.withZone(KINSHASA)).getYear();
         var draw = new CampaignDraw(
                 UUID.randomUUID(),
@@ -78,6 +86,12 @@ public class OrganizeDrawCommand {
                 lots,
                 draw.getSeed());
         campaignDrawRepository.save(draw);
+        campaignDrawRepository.flush();
+        for (var index = 0; index < tickets.size(); index++) {
+            var ticket = tickets.get(index);
+            jdbc.update("insert into app.draw_entry (draw_id, ticket_id, position, person_key) values (?, ?, ?, ?)",
+                    draw.getId(), ticket.id(), index, ticket.personKey());
+        }
         for (var prize : prizes) {
             var reference = tickets.stream().filter(ticket -> ticket.id().equals(prize.ticketId())).map(Holder::reference).findFirst().orElse("");
             drawPrizeRepository.save(new DrawPrize(UUID.randomUUID(), draw.getId(), prize.ticketId(), reference, prize.label()));

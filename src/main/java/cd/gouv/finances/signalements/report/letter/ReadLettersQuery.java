@@ -25,7 +25,7 @@ public class ReadLettersQuery {
         var waiting = "waiting".equals(status);
         var requested = Math.max(page, 0);
         var where = waiting
-                ? "where letter.status = 'validated' and not exists (select 1 from app.letter_response response where response.letter_id = letter.id) "
+                ? "where letter.status = 'validated' and exists (select 1 from app.letter_dispatch dispatch where dispatch.letter_id = letter.id) and not exists (select 1 from app.letter_response response where response.letter_id = letter.id) "
                 : "";
         var total = jdbc.queryForObject("select count(*) from app.letter letter " + where, Long.class);
         var args = new ArrayList<Object>();

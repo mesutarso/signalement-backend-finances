@@ -55,7 +55,7 @@ public class RuleController {
     }
 
     @PostMapping("/api/rules/{id}/activation")
-    @Operation(summary = "Activates one rule version for new credits only")
+    @Operation(summary = "Activates a rule version for reports filed after its activation")
     public RulePageResponse activate(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails account) {
         activateRuleVersionCommand.execute(id);
         recordAudit.allowed(account.getAccountId(), "rule-activation", "rule", id.toString());

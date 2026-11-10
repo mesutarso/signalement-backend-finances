@@ -37,10 +37,10 @@ public class PrimeContext {
                 from app.point_movement movement
                 join app.report report on report.id = movement.report_id
                 where movement.declarant_id = ?
-                  and movement.rule_version = ?
+                  and (?::varchar is null or movement.rule_version = ?)
                   and report.reporter_phone is not null
                   and btrim(report.reporter_phone) <> ''
-                """, String.class, declarantId, ruleVersion);
+                """, String.class, declarantId, ruleVersion, ruleVersion);
         if (numbers.isEmpty()) {
             return new Phone(null, MISSING);
         }

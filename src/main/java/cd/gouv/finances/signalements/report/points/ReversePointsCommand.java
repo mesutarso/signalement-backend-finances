@@ -28,6 +28,7 @@ public class ReversePointsCommand {
         if (keptReason.isEmpty() || keptReason.length() > 500) {
             throw new ReportRejected("points-reason", 400);
         }
+        pointsContext.lock();
         var balance = pointsContext.balance(reportId);
         if (balance.base() + balance.bonus() <= 0) {
             throw new ReportRejected("points-absent", 404);

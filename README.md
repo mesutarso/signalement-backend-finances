@@ -26,3 +26,7 @@ Variables facultatives : `REPORTS_SCHEDULE_ENABLED=false` désactive le cron ; `
 Les traitements sans activité depuis dix minutes sont marqués interrompus par le contrôle exécuté chaque minute, puis peuvent être relancés. Les anciens imports, enregistrés avant la migration V7 sans période, restent consultables ; leur période doit être saisie dans le formulaire pour les rejouer.
 
 Les appels FACNO (liste, détail et images) utilisent Resilience4j CircuitBreaker : fenêtre de 10 appels, au moins 5 appels, seuil d’échecs de 50 %, suspension de 60 secondes puis un appel de contrôle. Une ouverture apparaît comme un échec explicite dans le suivi ; la période peut être relancée après la suspension. Les contraintes uniques sur les identifiants source des signalements et sur les photos protègent les réimports contre les doublons.
+
+## Circuit interne et recette
+
+Le contrôle des bénéficiaires, les courriers par service, le budget et les archives de rapports sont décrits dans [la recette du 10 novembre 2026](RECETTE_2026-11-10.md). Elle fournit les commandes reproductibles et les limites de validation externe. Une identité vérifiée est requise avant toute approbation de prime. Les nouvelles API SITAX, les notifications et la gateway ne sont pas activées par ces corrections.

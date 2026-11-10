@@ -44,7 +44,7 @@ class CreditPointsCommandTest {
         var actorId = UUID.randomUUID();
         when(pointsContext.claim(reportId)).thenReturn(new Claim(
                 "confirm", "non-normalized", "A-1", "user-1", false, 0, LocalDate.parse("2026-11-04"), List.of(), false, 0));
-        when(activeRule.requireActive()).thenReturn(ActiveRule.cdc());
+        when(activeRule.requireForReport(reportId)).thenReturn(ActiveRule.cdc());
         when(assessPrimeCommand.execute("user-1", actorId, PointsAward.RULE)).thenReturn(List.of());
         var command = new CreditPointsCommand(pointsContext, pointMovementRepository, assessPrimeCommand, activeRule, clock);
 

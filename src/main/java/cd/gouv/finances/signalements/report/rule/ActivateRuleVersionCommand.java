@@ -19,6 +19,7 @@ public class ActivateRuleVersionCommand {
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
     public void execute(UUID id) {
+        jdbc.queryForObject("select pg_advisory_xact_lock(783962144)", Object.class);
         var rows = jdbc.query("select active from app.rule_version where id = ?", (row, number) -> row.getBoolean(1), id);
         if (rows.isEmpty()) {
             throw new ReportRejected("rule-absent", 404);
@@ -28,5 +29,6 @@ public class ActivateRuleVersionCommand {
         }
         jdbc.update("update app.rule_version set active = false where active = true and id <> ?", id);
         jdbc.update("update app.rule_version set active = true where id = ?", id);
+        jdbc.update("insert into app.rule_activation (rule_code, activated_at) select code, current_timestamp from app.rule_version where id = ?", id);
     }
 }

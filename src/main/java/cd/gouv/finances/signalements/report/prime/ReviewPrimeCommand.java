@@ -3,7 +3,6 @@ package cd.gouv.finances.signalements.report.prime;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.entity.Prime;
 import cd.gouv.finances.signalements.report.entity.PrimeReview;
-import cd.gouv.finances.signalements.report.points.PointsAward;
 import cd.gouv.finances.signalements.report.repository.PayoutNumberRepository;
 import cd.gouv.finances.signalements.report.repository.PrimeRepository;
 import cd.gouv.finances.signalements.report.repository.PrimeReviewRepository;
@@ -25,6 +24,7 @@ public class ReviewPrimeCommand {
     private final PrimeContext primeContext;
     private final PrimeGuard primeGuard;
     private final PrimeLoss primeLoss;
+    private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
 
     public record Outcome(String action, UUID payoutId) {
@@ -44,6 +44,7 @@ public class ReviewPrimeCommand {
         if (PrimeReview.APPROVED.equals(decision)) {
             keptReason = "";
         }
+        beneficiaries.lock();
         var prime = primeRepository.findById(primeId).orElseThrow(() -> new ReportRejected("prime-absent", 404));
         if (!Prime.PROPOSED.equals(prime.getStatus())) {
             throw new ReportRejected("prime-state", 409);
@@ -61,13 +62,14 @@ public class ReviewPrimeCommand {
             if (!PrimeContext.READY.equals(payout.getState()) || payout.getPhone() == null || !payout.getPhone().equals(prime.getPhone())) {
                 throw new ReportRejected("prime-phone", 409);
             }
-            var actors = primeContext.findingActors(prime.getDeclarantId(), PointsAward.RULE);
+            var actors = primeContext.findingActors(prime.getDeclarantId(), prime.getRuleVersion());
             if (actors.isEmpty()) {
                 throw new ReportRejected("prime-finding", 409);
             }
             if (actors.contains(actorId)) {
                 throw new ReportRejected("prime-separation", 409);
             }
+            beneficiaries.requireCapacity(prime);
             prime.approve(actorId, now);
         } else {
             prime.returnForCorrection(actorId, now);

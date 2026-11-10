@@ -22,6 +22,7 @@ public class AssessPrimeCommand {
     private final PrimeGuard primeGuard;
     private final ActiveRule activeRule;
     private final PrimeLoss primeLoss;
+    private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
 
     public record Change(UUID id, String action) {
@@ -39,6 +40,7 @@ public class AssessPrimeCommand {
         if (declarantId == null || declarantId.isBlank()) {
             return List.of();
         }
+        beneficiaries.lock();
         var declarant = declarantId.trim();
         var changes = new ArrayList<Change>();
         recordPayoutCommand.execute(declarant, actorId).ifPresent(id -> changes.add(new Change(id, "payout-record")));
@@ -85,6 +87,9 @@ public class AssessPrimeCommand {
             }
         }
         for (var prime : existing) {
+            if (primeGuard.paid(prime.getId())) {
+                continue;
+            }
             var stillReached = reached.stream().anyMatch(tier -> tier.threshold() == prime.getThreshold());
             if (!stillReached && !Prime.WITHDRAWN.equals(prime.getStatus())) {
                 prime.withdraw(actorId, now);
