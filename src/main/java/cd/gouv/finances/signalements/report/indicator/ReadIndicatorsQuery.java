@@ -19,7 +19,7 @@ public class ReadIndicatorsQuery {
 
     private static final ZoneId KINSHASA = ZoneId.of("Africa/Kinshasa");
     private static final Set<String> FINDINGS = Set.of(
-            "fake-invoice", "missing-transmission", "understated", "non-normalized", "refusal", "unknown-seller");
+            "fake-invoice", "missing-transmission", "understated", "non-normalized", "refusal", "unknown-seller", "nonconform", "vat-unregistered");
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
@@ -60,8 +60,7 @@ public class ReadIndicatorsQuery {
                 findings(from, to, finding),
                 dated("select count(*) from app.letter_dispatch where true", "sent_on", from, to),
                 dated("select count(*) from app.letter_response where true", "received_on", from, to),
-                points(from, to),
-                dated("select count(*) from app.prime where true", "recorded_at", from, to),
+                dated("select count(*) from app.prime where report_id is not null", "recorded_at", from, to),
                 paidAmount(from, to),
                 dated("select count(*) from app.payment_attempt where result = 'paid'", "recorded_at", from, to),
                 dated("select count(*) from app.campaign_draw where true", "drawn_at", from, to),
@@ -117,21 +116,12 @@ public class ReadIndicatorsQuery {
         return count(sql, finding, Timestamp.from(start(from)), Timestamp.from(end(to)));
     }
 
-    private long points(LocalDate from, LocalDate to) {
-        if (from == null) {
-            return count("select coalesce(sum(base_points + bonus_points), 0) from app.point_movement");
-        }
-        return count(
-                "select coalesce(sum(base_points + bonus_points), 0) from app.point_movement where recorded_at >= ? and recorded_at < ?",
-                Timestamp.from(start(from)),
-                Timestamp.from(end(to)));
-    }
-
     private long paidAmount(LocalDate from, LocalDate to) {
         var sql = """
                 select coalesce(sum(line.amount), 0)
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
+                join app.prime reward on reward.id = line.prime_id and reward.report_id is not null
                 where attempt.result = 'paid'
                 """;
         if (from == null) {

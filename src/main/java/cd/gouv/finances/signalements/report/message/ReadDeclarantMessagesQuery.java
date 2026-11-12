@@ -24,7 +24,9 @@ public class ReadDeclarantMessagesQuery {
         var requested = Math.max(page, 0);
         var total = jdbc.queryForObject("select count(*) from app.declarant_message", Long.class);
         var items = jdbc.query("""
-                select id, report_reference, kind, body, prepared_at
+                select id, report_reference, kind, body, prepared_at,
+                       case when status = 'sending' and send_started_at < current_timestamp - interval '30 seconds'
+                         then 'unknown' else status end, sent_at, delivery_code
                 from app.declarant_message
                 order by prepared_at desc
                 limit ? offset ?
@@ -33,7 +35,8 @@ public class ReadDeclarantMessagesQuery {
                 row.getString(2),
                 row.getString(3),
                 row.getString(4),
-                row.getTimestamp(5).toInstant()), SIZE, requested * (long) SIZE);
+                row.getTimestamp(5).toInstant(), row.getString(6),
+                row.getTimestamp(7) == null ? null : row.getTimestamp(7).toInstant(), row.getString(8)), SIZE, requested * (long) SIZE);
         return new DeclarantMessagePageResponse(items, requested, SIZE, total == null ? 0 : total);
     }
 }

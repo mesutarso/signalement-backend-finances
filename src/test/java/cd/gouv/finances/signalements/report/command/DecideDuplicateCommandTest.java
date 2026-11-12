@@ -40,7 +40,7 @@ class DecideDuplicateCommandTest {
         when(duplicateAlertRepository.findById(alert.getId())).thenReturn(Optional.of(alert));
         when(prepareDuplicateAlerts.winner(earlier, current)).thenReturn(new DuplicatePriority.Side(
                 earlier, "premier", LocalDateTime.parse("2026-10-01T08:00:00"), "a", true));
-        var command = new DecideDuplicateCommand(duplicateAlertRepository, prepareDuplicateAlerts, clock);
+        var command = new DecideDuplicateCommand(duplicateAlertRepository, prepareDuplicateAlerts, clock, org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.AnalysisJobs.class));
 
         command.execute(current, alert.getId(), "confirm", "  Même facture.  ", UUID.randomUUID());
 
@@ -57,7 +57,7 @@ class DecideDuplicateCommandTest {
                 UUID.randomUUID(), current, other, "number", "Même numéro", "possible", clock.instant());
         alert.dismiss("Pas la même opération", UUID.randomUUID(), clock.instant());
         when(duplicateAlertRepository.findById(alert.getId())).thenReturn(Optional.of(alert));
-        var command = new DecideDuplicateCommand(duplicateAlertRepository, prepareDuplicateAlerts, clock);
+        var command = new DecideDuplicateCommand(duplicateAlertRepository, prepareDuplicateAlerts, clock, org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.AnalysisJobs.class));
 
         assertThatThrownBy(() -> command.execute(current, alert.getId(), "confirm", "Finalement oui", UUID.randomUUID()))
                 .isInstanceOf(ReportRejected.class)

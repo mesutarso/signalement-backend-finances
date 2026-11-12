@@ -38,6 +38,7 @@ public class AssigneeDirectory {
     }
 
     public static String name(Map<UUID, String> names, UUID id) {
+        if (cd.gouv.finances.signalements.report.validation.ValidationRules.AUTOMATION.equals(id)) return "Traitement automatique";
         if (id == null) {
             return null;
         }

@@ -23,10 +23,10 @@ public class ReadPayoutNumbersQuery {
     @Transactional(readOnly = true)
     public PayoutPageResponse execute(int page) {
         var requested = Math.max(page, 0);
-        var total = jdbc.queryForObject("select count(*) from app.payout_number", Long.class);
+        var total = jdbc.queryForObject("select count(*) from app.payout_number p where exists (select 1 from app.prime r where r.declarant_id=p.declarant_id and r.report_id is not null)", Long.class);
         var items = jdbc.query("""
                 select id, phone, state, updated_at
-                from app.payout_number
+                from app.payout_number p where exists (select 1 from app.prime r where r.declarant_id=p.declarant_id and r.report_id is not null)
                 order by updated_at desc
                 limit ? offset ?
                 """, (row, number) -> new PayoutNumberResponse(

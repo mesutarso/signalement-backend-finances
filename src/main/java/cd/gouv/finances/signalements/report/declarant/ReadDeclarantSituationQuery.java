@@ -30,22 +30,19 @@ public class ReadDeclarantSituationQuery {
         var match = reportReference.require(reference);
         var declarant = jdbc.queryForObject("select nullif(btrim(reporter_user_id), '') from app.report where id = ?", String.class, match.id());
         var reports = reports(match.id(), declarant);
-        var rule = activeRule.requireForReport(match.id());
-        var points = declarant == null ? reportPoints(match.id()) : sum("""
-                select coalesce(sum(base_points + bonus_points), 0) from app.point_movement where declarant_id = ? and rule_version = ?
-                """, declarant, rule.code());
+        var rule = activeRule.requireActive();
         var primeAmount = declarant == null ? 0 : sum("""
-                select coalesce(sum(amount), 0) from app.prime where declarant_id = ? and rule_version = ? and status <> 'withdrawn'
-                """, declarant, rule.code());
+                select coalesce(sum(amount), 0) from app.prime where declarant_id = ? and report_id is not null and status <> 'withdrawn'
+                """, declarant);
         var paidAmount = declarant == null ? 0 : sum("""
                 select coalesce(sum(line.amount), 0)
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
                 join app.prime prime on prime.id = line.prime_id
-                where attempt.result = 'paid' and prime.declarant_id = ?
+                where attempt.result = 'paid' and prime.report_id is not null and prime.declarant_id = ?
                 """, declarant);
         var approved = declarant != null && count("""
-                select count(*) from app.prime where declarant_id = ? and status = 'approved'
+                select count(*) from app.prime where declarant_id = ? and report_id is not null and status = 'approved'
                 """, declarant) > 0;
         var tickets = count(declarant == null
                 ? "select count(*) from app.draw_ticket where report_id = ? and excluded_at is null"
@@ -68,7 +65,6 @@ public class ReadDeclarantSituationQuery {
                 """, declarant == null ? match.id() : declarant);
         return new DeclarantSituationResponse(
                 match.reference(),
-                points,
                 primeAmount,
                 paidAmount,
                 rule.ceiling(),
@@ -82,8 +78,7 @@ public class ReadDeclarantSituationQuery {
 
     private java.util.List<DeclarantSituationResponse.Report> reports(UUID reportId, String declarant) {
         var sql = """
-                select report.id, report.reference_code, report.state, latest.decision,
-                       coalesce((select sum(base_points + bonus_points) from app.point_movement movement where movement.report_id = report.id), 0)
+                select report.id, report.reference_code, report.state, latest.decision
                 from app.report report
                 left join lateral (
                     select decision from app.qualification
@@ -98,12 +93,7 @@ public class ReadDeclarantSituationQuery {
         return jdbc.query(sql, (row, number) -> new DeclarantSituationResponse.Report(
                 row.getObject(1, UUID.class),
                 row.getString(2),
-                DeclarantStatus.of(row.getString(3), row.getString(4), row.getInt(5)),
-                row.getInt(5)), declarant == null ? reportId : declarant);
-    }
-
-    private int reportPoints(UUID reportId) {
-        return sum("select coalesce(sum(base_points + bonus_points), 0) from app.point_movement where report_id = ?", reportId);
+                DeclarantStatus.of(row.getString(3), row.getString(4))), declarant == null ? reportId : declarant);
     }
 
     private int sum(String sql, Object... arguments) {

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import cd.gouv.finances.signalements.report.ReportReference;
 import cd.gouv.finances.signalements.report.ReportRejected;
-import cd.gouv.finances.signalements.report.points.ReversePointsCommand;
 import cd.gouv.finances.signalements.report.repository.DecisionCorrectionRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,12 +32,6 @@ class FallConfirmationCommandTest {
     private ReportReference reportReference;
     @Mock
     private DecisionCorrectionRepository decisionCorrectionRepository;
-    @Mock
-    private ReversePointsCommand reversePointsCommand;
-
-    @Mock
-    private cd.gouv.finances.signalements.report.points.PointsContext pointsContext;
-
     @Test
     void refusesWhenTheLatestDecisionIsNotAConfirmation() {
         var reportId = UUID.randomUUID();
@@ -48,15 +41,12 @@ class FallConfirmationCommandTest {
                 jdbc,
                 reportReference,
                 decisionCorrectionRepository,
-                pointsContext,
-                reversePointsCommand,
-                Clock.fixed(Instant.parse("2026-11-07T12:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-11-07T12:00:00Z"), ZoneOffset.UTC), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.AssessmentStore.class), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.FixedRewards.class));
 
         assertThatThrownBy(() -> command.execute("SIG-1", "La confirmation tombe.", UUID.randomUUID()))
                 .isInstanceOf(ReportRejected.class)
                 .extracting(error -> ((ReportRejected) error).code())
                 .isEqualTo("correction-state");
-        verify(reversePointsCommand, never()).execute(any(), any(), any());
         verify(decisionCorrectionRepository, never()).save(any());
     }
 }

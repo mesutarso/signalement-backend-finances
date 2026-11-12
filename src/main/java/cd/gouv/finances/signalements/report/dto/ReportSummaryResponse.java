@@ -14,5 +14,6 @@ public record ReportSummaryResponse(
         long version,
         String reporterName,
         String reporterEmail,
-        String reporterPhone) {
+        String reporterPhone,
+        String validationState) {
 }

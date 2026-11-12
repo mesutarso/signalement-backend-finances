@@ -24,7 +24,7 @@ class StoreReportTest {
             saved.set(report);
             return report;
         });
-        var command = new StoreReport(repository, Clock.systemUTC());
+        var command = new StoreReport(repository, Clock.systemUTC(), mock(cd.gouv.finances.signalements.report.validation.AnalysisJobs.class));
         var incoming = new SourcedReport("report-1", LocalDateTime.parse("2026-11-06T08:00:00"),
                 "Titre", "Description", "Déclarant", "test@example.com", "123", "user-1",
                 List.of(new SourcedPhoto("photo-1", "image/png", new byte[] {1})));

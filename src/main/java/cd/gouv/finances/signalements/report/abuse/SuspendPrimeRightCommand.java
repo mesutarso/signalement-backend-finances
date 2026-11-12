@@ -2,7 +2,6 @@ package cd.gouv.finances.signalements.report.abuse;
 
 import cd.gouv.finances.signalements.report.ReportReference;
 import cd.gouv.finances.signalements.report.ReportRejected;
-import cd.gouv.finances.signalements.report.prime.AssessPrimeCommand;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,17 +14,14 @@ public class SuspendPrimeRightCommand {
 
     private final JdbcTemplate jdbc;
     private final ReportReference reportReference;
-    private final AssessPrimeCommand assessPrimeCommand;
     private final Clock clock;
 
     public SuspendPrimeRightCommand(
             JdbcTemplate jdbc,
             ReportReference reportReference,
-            AssessPrimeCommand assessPrimeCommand,
             Clock clock) {
         this.jdbc = jdbc;
         this.reportReference = reportReference;
-        this.assessPrimeCommand = assessPrimeCommand;
         this.clock = clock;
     }
 
@@ -62,7 +58,6 @@ public class SuspendPrimeRightCommand {
                 insert into app.prime_suspension (id, declarant_id, action, reason, actor_id, recorded_at)
                 values (?, ?, ?, ?, ?, ?)
                 """, UUID.randomUUID(), declarant, decision, keptReason, actorId, java.sql.Timestamp.from(clock.instant()));
-        assessPrimeCommand.execute(declarant, actorId);
         return match.reference();
     }
 }

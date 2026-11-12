@@ -18,6 +18,10 @@ Le réseau externe `coolify` doit exister sur le serveur et être partagé avec 
 
 ## Variables
 
+Pour cette livraison, configurer `UNIKRON_ENDPOINT`, `UNIKRON_USER_NAME`, `UNIKRON_APP_KEY` et, si nécessaire, `UNIKRON_SENDER_ID` dans Coolify. Le Compose impose `UNIKRON_MODE=development` : seuls `243827243119` et `243852214059` sont admis. Ce verrou doit rester en place jusqu’au GO explicite. Aucun envoi automatique des brouillons n’est déclenché.
+
+La livraison inclut les migrations V44 (validation et récompenses configurables) et V45 (état courant des envois SMS). Sauvegarder la base avant leur application. Déployer le backend puis le frontend, puis vérifier la connexion, la file agent, les dossiers à vérifier, `/recompenses`, `/regles` et `/messages`. Les anciennes routes `/points` et `/primes` sont supprimées.
+
 Saisir les valeurs du fichier `.env.production.example` dans Coolify. Coolify génère les mots de passe PostgreSQL et Redis à partir des variables SERVICE_PASSWORD_64_POSTGRES et SERVICE_PASSWORD_64_REDIS. Saisir séparément le mot de passe administrateur initial. Ne pas publier `.env` ou `.env.production`. `APP_FRONTEND_ORIGIN` doit être le domaine HTTPS réel du frontend, sans port interne ni barre finale.
 
 ## Persistance

@@ -10,7 +10,6 @@ import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.entity.PayoutNumber;
 import cd.gouv.finances.signalements.report.entity.Prime;
 import cd.gouv.finances.signalements.report.entity.PrimeReview;
-import cd.gouv.finances.signalements.report.points.PointsAward;
 import cd.gouv.finances.signalements.report.repository.PayoutNumberRepository;
 import cd.gouv.finances.signalements.report.repository.PrimeRepository;
 import cd.gouv.finances.signalements.report.repository.PrimeReviewRepository;
@@ -25,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewPrimeCommandTest {
@@ -42,16 +42,13 @@ class ReviewPrimeCommandTest {
     private RecordPayoutCommand recordPayoutCommand;
 
     @Mock
-    private PrimeContext primeContext;
-
-    @Mock
     private PrimeGuard primeGuard;
 
     @Mock
-    private PrimeLoss primeLoss;
+    private BeneficiaryRegistry beneficiaries;
 
     @Mock
-    private BeneficiaryRegistry beneficiaries;
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-07T01:00:00Z"), ZoneOffset.UTC);
 
@@ -62,14 +59,13 @@ class ReviewPrimeCommandTest {
         when(primeRepository.findById(prime.getId())).thenReturn(Optional.of(prime));
         when(recordPayoutCommand.execute("user-1", reviewer)).thenReturn(Optional.empty());
         when(payoutNumberRepository.findByDeclarantId("user-1")).thenReturn(Optional.of(payout(prime.getPhone())));
-        when(primeContext.findingActors("user-1", PointsAward.RULE)).thenReturn(List.of(UUID.randomUUID()));
         var command = command();
 
         var outcome = command.execute(prime.getId(), "approved", null, reviewer);
 
         var saved = ArgumentCaptor.forClass(PrimeReview.class);
         verify(primeReviewRepository).save(saved.capture());
-        assertThat(outcome.action()).isEqualTo("prime-approval");
+        assertThat(outcome.action()).isEqualTo("reward-approval");
         assertThat(prime.getStatus()).isEqualTo(Prime.APPROVED);
         assertThat(saved.getValue().getReason()).isNull();
     }
@@ -98,7 +94,7 @@ class ReviewPrimeCommandTest {
         when(primeRepository.findById(prime.getId())).thenReturn(Optional.of(prime));
         when(recordPayoutCommand.execute("user-1", agent)).thenReturn(Optional.empty());
         when(payoutNumberRepository.findByDeclarantId("user-1")).thenReturn(Optional.of(payout(prime.getPhone())));
-        when(primeContext.findingActors("user-1", PointsAward.RULE)).thenReturn(List.of(agent));
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(UUID.class), org.mockito.ArgumentMatchers.eq(prime.getReportId()))).thenReturn(List.of(agent));
         var command = command();
 
         assertThatThrownBy(() -> command.execute(prime.getId(), "approved", null, agent))
@@ -119,7 +115,7 @@ class ReviewPrimeCommandTest {
 
         var outcome = command.execute(prime.getId(), "returned", "  Le numéro doit être revu.  ", reviewer);
 
-        assertThat(outcome.action()).isEqualTo("prime-return");
+        assertThat(outcome.action()).isEqualTo("reward-return");
         assertThat(prime.getStatus()).isEqualTo(Prime.RETURNED);
         var saved = ArgumentCaptor.forClass(PrimeReview.class);
         verify(primeReviewRepository).save(saved.capture());
@@ -127,27 +123,37 @@ class ReviewPrimeCommandTest {
     }
 
     private ReviewPrimeCommand command() {
-        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeContext, primeGuard, primeLoss, beneficiaries, clock);
+        return new ReviewPrimeCommand(primeRepository, primeReviewRepository, payoutNumberRepository, recordPayoutCommand, primeGuard, beneficiaries, clock, org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.RewardPaymentGuard.class), jdbc);
     }
 
     @Test
-    void checksTheActorsOfThePrimeRuleAndTheSharedBeneficiaryCeiling() {
-        var prime = new Prime(UUID.randomUUID(), "user-1", "0990000001", "new-rule", 30, 10000, UUID.randomUUID(), clock.instant());
+    void approvesAnAutomaticallyValidatedRewardWithoutApplyingHistoricalPointForfeiture() {
+        var prime = new Prime(UUID.randomUUID(), "user-1", "0990000001", "fixed-reward", 0, 5000, UUID.randomUUID(), clock.instant());
+        ReflectionTestUtils.setField(prime, "reportId", UUID.randomUUID());
         var reviewer = UUID.randomUUID();
         when(primeRepository.findById(prime.getId())).thenReturn(Optional.of(prime));
         when(recordPayoutCommand.execute("user-1", reviewer)).thenReturn(Optional.empty());
         when(payoutNumberRepository.findByDeclarantId("user-1")).thenReturn(Optional.of(payout(prime.getPhone())));
-        when(primeContext.findingActors("user-1", "new-rule")).thenReturn(List.of(UUID.randomUUID()));
 
         command().execute(prime.getId(), "approved", null, reviewer);
 
-        verify(beneficiaries).lock();
-        verify(beneficiaries).requireCapacity(prime);
         assertThat(prime.getStatus()).isEqualTo(Prime.APPROVED);
+        verify(beneficiaries).requireCapacity(prime);
+    }
+
+    @Test
+    void refusesARetiredTierEvenWhenItsIdentifierIsKnown() {
+        var legacy = new Prime(UUID.randomUUID(), "user-1", "0990000001", "old-rule", 30, 10000, UUID.randomUUID(), clock.instant());
+        when(primeRepository.findById(legacy.getId())).thenReturn(Optional.of(legacy));
+        assertThatThrownBy(() -> command().execute(legacy.getId(), "approved", null, UUID.randomUUID()))
+                .isInstanceOf(ReportRejected.class).hasMessage("prime-absent");
+        verify(primeReviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     private Prime proposed() {
-        return new Prime(UUID.randomUUID(), "user-1", "0990000001", PointsAward.RULE, 30, 10_000, UUID.randomUUID(), clock.instant());
+        var reward = new Prime(UUID.randomUUID(), "user-1", "0990000001", "fixed-reward", 0, 5000, UUID.randomUUID(), clock.instant());
+        ReflectionTestUtils.setField(reward, "reportId", UUID.randomUUID());
+        return reward;
     }
 
     private PayoutNumber payout(String phone) {

@@ -41,7 +41,7 @@ class DecidePaymentStatementCommandTest {
         command = new DecidePaymentStatementCommand(
                 paymentStatementRepository,
                 paymentStatementLineRepository,
-                Clock.fixed(Instant.parse("2026-11-06T10:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-11-06T10:00:00Z"), ZoneOffset.UTC), org.mockito.Mockito.mock(cd.gouv.finances.signalements.report.validation.RewardPaymentGuard.class));
         supervisor = UUID.randomUUID();
         cellule = UUID.randomUUID();
         statement = new PaymentStatement(UUID.randomUUID(), "EP-2026-000001", UUID.randomUUID(), Instant.parse("2026-11-06T08:00:00Z"));

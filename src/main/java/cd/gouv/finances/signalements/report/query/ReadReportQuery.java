@@ -10,14 +10,11 @@ import cd.gouv.finances.signalements.report.dto.PhotoRequestResponse;
 import cd.gouv.finances.signalements.report.dto.ReportResponse;
 import cd.gouv.finances.signalements.report.entity.DuplicateAlert;
 import cd.gouv.finances.signalements.report.entity.PhotoRequest;
-import cd.gouv.finances.signalements.report.entity.ReportAssignment;
 import cd.gouv.finances.signalements.report.mapper.PhotoReadingMapper;
 import cd.gouv.finances.signalements.report.mapper.ReportMapper;
 import cd.gouv.finances.signalements.report.repository.DuplicateAlertRepository;
-import cd.gouv.finances.signalements.report.repository.QualificationRepository;
 import cd.gouv.finances.signalements.report.repository.SupervisionReviewRepository;
 import cd.gouv.finances.signalements.report.repository.PhotoRequestRepository;
-import cd.gouv.finances.signalements.report.repository.ReportAssignmentRepository;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -36,32 +33,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadReportQuery {
 
     private final ReportRepository reportRepository;
-    private final ReportAssignmentRepository reportAssignmentRepository;
     private final AssigneeDirectory assigneeDirectory;
     private final ReadDocumentReadingsQuery readDocumentReadingsQuery;
     private final PhotoRequestRepository photoRequestRepository;
     private final DuplicateAlertRepository duplicateAlertRepository;
     private final DuplicateLookup duplicateLookup;
-    private final QualificationRepository qualificationRepository;
     private final SupervisionReviewRepository supervisionReviewRepository;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
     @Transactional(readOnly = true)
     public ReportResponse execute(UUID id, boolean includeReporter) {
         var report = reportRepository.findById(id).orElseThrow(() -> new ReportRejected("report-absent", 404));
-        var history = reportAssignmentRepository.findByReportIdOrderByRecordedAtDesc(id);
         var ids = new HashSet<UUID>();
         if (report.getAssigneeId() != null) {
             ids.add(report.getAssigneeId());
-        }
-        for (var entry : history) {
-            ids.add(entry.getActorId());
-            if (entry.getAssigneeId() != null) {
-                ids.add(entry.getAssigneeId());
-            }
-            if (entry.getPreviousAssigneeId() != null) {
-                ids.add(entry.getPreviousAssigneeId());
-            }
         }
         var requests = photoRequestRepository.findByReportIdOrderByCreatedAtDesc(id);
         for (var request : requests) {
@@ -72,10 +57,6 @@ public class ReadReportQuery {
             if (alert.getActorId() != null) {
                 ids.add(alert.getActorId());
             }
-        }
-        var qualifications = qualificationRepository.findByReportIdOrderByRecordedAtDesc(id);
-        for (var qualification : qualifications) {
-            ids.add(qualification.getActorId());
         }
         var reviews = supervisionReviewRepository.findByReportIdOrderByRecordedAtDesc(id);
         for (var review : reviews) {
@@ -114,7 +95,7 @@ public class ReadReportQuery {
                         request.getNotice()))
                 .toList();
         return ReportMapper.toResponse(
-                report, includeReporter, names, history, readings, photoRequests, duplicates(id, alerts, names), qualifications, reviews);
+                report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names), reviews);
     }
 
     private List<DuplicateAlertResponse> duplicates(UUID id, List<DuplicateAlert> alerts, Map<UUID, String> names) {

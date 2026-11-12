@@ -91,7 +91,7 @@ public class ApiExceptionHandler {
             Map.entry("beneficiary-evidence", "Renseignez le dossier du bénéficiaire et le justificatif contrôlé."),
             Map.entry("beneficiary-locked", "Ce compte est déjà rattaché à un bénéficiaire vérifié. Son identité ne peut pas être remplacée."),
             Map.entry("beneficiary-unverified", "Vérifiez l'identité du bénéficiaire dans Situation du déclarant avant d'approuver sa prime."),
-            Map.entry("beneficiary-ceiling", "Cette prime dépasserait le plafond du bénéficiaire, tous comptes et versions confondus."),
+            Map.entry("beneficiary-ceiling", "Cette récompense dépasserait le plafond du bénéficiaire, tous comptes et versions confondus."),
             Map.entry("points-declarant", "Le déclarant n'est pas identifiable."),
             Map.entry("points-duplicate", "Ce signalement n'a pas la priorité sur l'opération."),
             Map.entry("points-day", "Cinq signalements de ce déclarant ont déjà été déposés ce jour-là."),
@@ -102,10 +102,10 @@ public class ApiExceptionHandler {
             Map.entry("points-reason", "Indiquez le motif de l'annulation."),
             Map.entry("prime-result", "La décision n'est pas acceptée."),
             Map.entry("prime-reason", "Indiquez le motif du renvoi."),
-            Map.entry("prime-absent", "Cette prime est introuvable."),
-            Map.entry("prime-state", "Cette prime n'est plus à revoir."),
+            Map.entry("prime-absent", "Cette récompense est introuvable."),
+            Map.entry("prime-state", "Cette récompense n'est plus à revoir."),
             Map.entry("prime-finding", "Le constat retenu est introuvable."),
-            Map.entry("prime-separation", "L'agent qui a retenu le constat ne peut pas autoriser la prime."),
+            Map.entry("prime-separation", "L'agent qui a retenu le constat ne peut pas autoriser la récompense."),
             Map.entry("prime-phone", "Le numéro de paiement doit être celui du déclarant, et un seul."),
             Map.entry("payment-empty", "Aucune prime approuvée n'est prête pour un état."),
             Map.entry("payment-open", "Un état de paiement est déjà en cours."),
@@ -116,8 +116,8 @@ public class ApiExceptionHandler {
             Map.entry("payment-separation", "Cette étape doit être faite par un autre bureau."),
             Map.entry("payment-outcome", "Le résultat n'est pas accepté."),
             Map.entry("payment-reference", "Indiquez la référence de la transaction."),
-            Map.entry("payment-line", "Cette prime n'est pas dans cet état."),
-            Map.entry("payment-paid", "Cette prime est déjà payée."),
+            Map.entry("payment-line", "Cette récompense n'est pas dans cet état."),
+            Map.entry("payment-paid", "Cette récompense est déjà payée."),
             Map.entry("payment-uncertain", "Le résultat incertain doit être confirmé avant une nouvelle tentative."),
             Map.entry("payment-operator", "Choisissez un moyen de paiement."),
             Map.entry("taxpayer-absent", "Ce contribuable est introuvable."),
@@ -155,7 +155,7 @@ public class ApiExceptionHandler {
             Map.entry("suspension-declarant", "Ce signalement n'a pas de déclarant identifiable."),
             Map.entry("suspension-state", "Le droit aux primes est déjà dans cet état."),
             Map.entry("prime-suspended", "Le droit aux primes est suspendu."),
-            Map.entry("prime-lost", "Cette prime est perdue : 90 jours se sont écoulés depuis le crédit sans numéro valide."),
+            Map.entry("prime-lost", "Cette récompense est perdue : 90 jours se sont écoulés depuis le crédit sans numéro valide."),
             Map.entry("model-body", "Le modèle contient la référence une seule fois."),
             Map.entry("handover-note", "La note est trop longue."),
             Map.entry("handover-absent", "Ce lot est introuvable."),
@@ -178,6 +178,22 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ReportRejected.class)
     ResponseEntity<ApiError> reportRejected(ReportRejected rejected) {
+        var workflowMessage = switch (rejected.code()) {
+            case "assessment-absent" -> "Vérification introuvable.";
+            case "sms-state" -> "Ce message est déjà transmis, en cours d’envoi ou à confirmer.";
+            case "sms-absent" -> "Message introuvable.";
+            case "sms-test-disabled" -> "Les essais SMS sont désactivés.";
+            case "assessment-photo" -> "Choisissez une pièce jointe de ce signalement.";
+            case "assessment-value" -> "Une vérification comporte une valeur non acceptée.";
+            case "assessment-evidence" -> "Indiquez la source ou le justificatif de chaque vérification renseignée.";
+            case "assessment-busy" -> "L’analyse des pièces est en cours. Actualisez le dossier avant de vérifier.";
+            case "assessment-required" -> "Utilisez la nouvelle grille de vérification pour ce signalement.";
+            case "reward-amount" -> "Indiquez un montant de récompense positif.";
+            case "reward-validation" -> "Le signalement doit être validé avant de poursuivre le paiement.";
+            case "points-retired" -> "L’attribution de points est remplacée par une récompense par signalement validé.";
+            default -> null;
+        };
+        if (workflowMessage != null) return ResponseEntity.status(rejected.status()).body(new ApiError(rejected.code(), workflowMessage));
         if ("import-running".equals(rejected.code())) return ResponseEntity.status(409).body(new ApiError("import-running", "Un import est déjà en cours. Attendez sa fin."));
         if ("dispatch-error".equals(rejected.code())) return ResponseEntity.status(503).body(new ApiError("dispatch-error", "L’import ne peut pas démarrer. Réessayez."));
         return ResponseEntity.status(rejected.status()).body(error(rejected.code()));

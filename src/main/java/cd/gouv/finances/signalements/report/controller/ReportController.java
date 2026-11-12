@@ -5,10 +5,8 @@ import cd.gouv.finances.signalements.access.security.AccountUserDetails;
 import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.report.command.AssignReportCommand;
 import cd.gouv.finances.signalements.report.command.DecideDuplicateCommand;
-import cd.gouv.finances.signalements.report.command.RecordQualificationCommand;
 import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
 import cd.gouv.finances.signalements.report.dto.DuplicateDecisionBody;
-import cd.gouv.finances.signalements.report.dto.QualificationBody;
 import cd.gouv.finances.signalements.report.command.LinkPhotoRequestCommand;
 import cd.gouv.finances.signalements.report.command.RequestPhotoCommand;
 import cd.gouv.finances.signalements.report.command.RequestPhotoReadingCommand;
@@ -58,7 +56,6 @@ public class ReportController {
     private final LinkPhotoRequestCommand linkPhotoRequestCommand;
     private final PrepareDuplicateAlerts prepareDuplicateAlerts;
     private final DecideDuplicateCommand decideDuplicateCommand;
-    private final RecordQualificationCommand recordQualificationCommand;
     private final RecordAudit recordAudit;
 
     @GetMapping("/api/reports")
@@ -69,6 +66,7 @@ public class ReportController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String state,
             @RequestParam(required = false) String priority,
+            @RequestParam(required = false) String validation,
             @RequestParam(required = false) UUID assigneeId,
             @RequestParam(defaultValue = "false") boolean unassigned,
             @AuthenticationPrincipal AccountUserDetails account) {
@@ -76,7 +74,7 @@ public class ReportController {
                 page,
                 size,
                 account != null && account.getRole() != Role.AUDITOR,
-                new ReadReportsQuery.ReportSearch(q, state, priority, assigneeId, unassigned));
+                new ReadReportsQuery.ReportSearch(q, state, priority, assigneeId, unassigned, validation));
     }
 
     @GetMapping("/api/reports/assignees")
@@ -114,29 +112,6 @@ public class ReportController {
         decideDuplicateCommand.execute(id, alertId, body.decision(), body.reason(), account.getAccountId());
         recordAudit.allowed(account.getAccountId(), "duplicate", "report", id.toString());
         prepareDuplicateAlerts.execute(id);
-        return readReportQuery.execute(id, account.getRole() != Role.AUDITOR);
-    }
-
-    @PostMapping("/api/reports/{id}/qualifications")
-    @Operation(summary = "Records a sufficient-proof qualification without awarding points")
-    public ReportResponse qualify(
-            @PathVariable UUID id,
-            @Valid @RequestBody QualificationBody body,
-            @AuthenticationPrincipal AccountUserDetails account) {
-        recordQualificationCommand.execute(id, new RecordQualificationCommand.QualificationRequest(
-                body.decision(),
-                body.finding(),
-                body.proof(),
-                body.justification(),
-                body.sellerName(),
-                body.sellerTaxId(),
-                body.issuedOn(),
-                body.amount(),
-                body.documentNumber(),
-                body.code(),
-                body.missingElements(),
-                body.dgiReference()), account.getAccountId());
-        recordAudit.allowed(account.getAccountId(), "qualification", "report", id.toString());
         return readReportQuery.execute(id, account.getRole() != Role.AUDITOR);
     }
 

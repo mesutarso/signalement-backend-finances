@@ -69,7 +69,7 @@ public class BeneficiaryRegistry {
     public void requireCapacity(Prime prime) {
         var identity = key(prime.getDeclarantId());
         if (identity == null) throw new ReportRejected("beneficiary-unverified", 409);
-        var ceiling = activeRule.require(prime.getRuleVersion()).ceiling();
+        var ceiling = activeRule.requireActive().ceiling();
         if (reserved(identity, prime.getId()) + prime.getAmount() > ceiling) {
             throw new ReportRejected("beneficiary-ceiling", 409);
         }

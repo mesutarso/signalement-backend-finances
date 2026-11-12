@@ -6,15 +6,11 @@ public final class DeclarantStatus {
     public static final String REVIEW = "review";
     public static final String REJECTED = "rejected";
     public static final String CONFIRMED = "confirmed";
-    public static final String POINTS = "points";
 
     private DeclarantStatus() {
     }
 
-    public static String of(String reportState, String decision, int netPoints) {
-        if (netPoints > 0) {
-            return POINTS;
-        }
+    public static String of(String reportState, String decision) {
         if ("confirm".equals(decision)) {
             return CONFIRMED;
         }

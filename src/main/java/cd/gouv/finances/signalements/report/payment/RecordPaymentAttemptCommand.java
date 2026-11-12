@@ -21,10 +21,12 @@ public class RecordPaymentAttemptCommand {
     private final PaymentStatementLineRepository paymentStatementLineRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.validation.RewardPaymentGuard rewardPaymentGuard;
 
     @PreAuthorize("hasRole('PAYMASTER')")
     @Transactional
     public String execute(UUID statementId, UUID lineId, String operator, String result, String reason, UUID actorId) {
+        rewardPaymentGuard.lock();
         var outcome = result == null ? "" : result.trim();
         if (!PaymentAttempt.PAID.equals(outcome) && !PaymentAttempt.FAILED.equals(outcome) && !PaymentAttempt.UNKNOWN.equals(outcome)) {
             throw new ReportRejected("payment-outcome", 400);
@@ -48,6 +50,7 @@ public class RecordPaymentAttemptCommand {
         if (!statementId.equals(line.getStatementId()) || line.isReleased()) {
             throw new ReportRejected("payment-line", 404);
         }
+        rewardPaymentGuard.requirePrime(line.getPrimeId());
         var attempts = paymentAttemptRepository.findByLineIdOrderByRecordedAtAsc(lineId);
         if (attempts.stream().anyMatch(attempt -> PaymentAttempt.PAID.equals(attempt.getResult()))) {
             throw new ReportRejected("payment-paid", 409);

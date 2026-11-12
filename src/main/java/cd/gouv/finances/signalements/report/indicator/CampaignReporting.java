@@ -29,9 +29,10 @@ public class CampaignReporting {
     @Transactional(readOnly = true)
     public Budget budget() {
         var amounts = jdbc.queryForList("select amount from app.campaign_budget order by recorded_at desc, id desc limit 1", Long.class);
-        var approved = jdbc.queryForObject("select coalesce(sum(amount), 0) from app.prime where status = 'approved'", Long.class);
+        var approved = jdbc.queryForObject("select coalesce(sum(amount), 0) from app.prime where report_id is not null and status = 'approved'", Long.class);
         var paid = jdbc.queryForObject("""
-                select coalesce(sum(line.amount), 0) from app.payment_statement_line line where exists (
+                select coalesce(sum(line.amount), 0) from app.payment_statement_line line
+                join app.prime reward on reward.id = line.prime_id and reward.report_id is not null where exists (
                     select 1 from app.payment_attempt attempt where attempt.line_id = line.id and attempt.result = 'paid')
                 """, Long.class);
         return new Budget(amounts.isEmpty() ? null : amounts.getFirst(), approved == null ? 0 : approved, paid == null ? 0 : paid);

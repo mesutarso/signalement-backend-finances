@@ -10,10 +10,8 @@ import cd.gouv.finances.signalements.report.entity.PhotoRequest;
 import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.duplicate.DuplicateLookup;
 import cd.gouv.finances.signalements.report.repository.DuplicateAlertRepository;
-import cd.gouv.finances.signalements.report.repository.QualificationRepository;
 import cd.gouv.finances.signalements.report.repository.SupervisionReviewRepository;
 import cd.gouv.finances.signalements.report.repository.PhotoRequestRepository;
-import cd.gouv.finances.signalements.report.repository.ReportAssignmentRepository;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -34,9 +32,6 @@ class ReadReportQueryTest {
     private ReportRepository reportRepository;
 
     @Mock
-    private ReportAssignmentRepository reportAssignmentRepository;
-
-    @Mock
     private AssigneeDirectory assigneeDirectory;
 
     @Mock
@@ -50,9 +45,6 @@ class ReadReportQueryTest {
 
     @Mock
     private DuplicateLookup duplicateLookup;
-
-    @Mock
-    private QualificationRepository qualificationRepository;
 
     @Mock
     private SupervisionReviewRepository supervisionReviewRepository;
@@ -74,24 +66,20 @@ class ReadReportQueryTest {
                 "+243810000000",
                 "utilisateur-001",
                 Instant.parse("2026-11-06T00:00:00Z"))));
-        when(reportAssignmentRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         when(assigneeDirectory.names(java.util.Set.of())).thenReturn(Map.of());
         when(readDocumentReadingsQuery.latest(any())).thenReturn(Map.of());
         when(photoRequestRepository.findByReportIdOrderByCreatedAtDesc(id)).thenReturn(List.of());
         when(duplicateAlertRepository.findByReportIdOrOtherReportIdOrderByCreatedAtDesc(id, id)).thenReturn(List.of());
         when(duplicateLookup.timings(any())).thenReturn(List.of());
         when(duplicateLookup.completeReports(any())).thenReturn(List.of());
-        when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         when(supervisionReviewRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         var query = new ReadReportQuery(
                 reportRepository,
-                reportAssignmentRepository,
                 assigneeDirectory,
                 readDocumentReadingsQuery,
                 photoRequestRepository,
                 duplicateAlertRepository,
                 duplicateLookup,
-                qualificationRepository,
                 supervisionReviewRepository);
 
         var hidden = query.execute(id, false);
@@ -124,7 +112,6 @@ class ReadReportQueryTest {
                 null,
                 null,
                 Instant.parse("2026-11-06T00:00:00Z"))));
-        when(reportAssignmentRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         when(readDocumentReadingsQuery.latest(any())).thenReturn(Map.of());
         when(photoRequestRepository.findByReportIdOrderByCreatedAtDesc(id)).thenReturn(List.of(new PhotoRequest(
                 UUID.randomUUID(),
@@ -139,17 +126,14 @@ class ReadReportQueryTest {
         when(duplicateAlertRepository.findByReportIdOrOtherReportIdOrderByCreatedAtDesc(id, id)).thenReturn(List.of());
         when(duplicateLookup.timings(any())).thenReturn(List.of());
         when(duplicateLookup.completeReports(any())).thenReturn(List.of());
-        when(qualificationRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         when(supervisionReviewRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         var query = new ReadReportQuery(
                 reportRepository,
-                reportAssignmentRepository,
                 assigneeDirectory,
                 readDocumentReadingsQuery,
                 photoRequestRepository,
                 duplicateAlertRepository,
                 duplicateLookup,
-                qualificationRepository,
                 supervisionReviewRepository);
 
         var detail = query.execute(id, false);

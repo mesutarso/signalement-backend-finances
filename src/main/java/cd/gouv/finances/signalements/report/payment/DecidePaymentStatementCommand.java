@@ -29,6 +29,7 @@ public class DecidePaymentStatementCommand {
     private final PaymentStatementRepository paymentStatementRepository;
     private final PaymentStatementLineRepository paymentStatementLineRepository;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.validation.RewardPaymentGuard rewardPaymentGuard;
 
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
@@ -49,6 +50,7 @@ public class DecidePaymentStatementCommand {
     }
 
     private String decide(UUID statementId, String step, String result, String reason, UUID actorId) {
+        rewardPaymentGuard.lock();
         var decision = result == null ? "" : result.trim();
         var keptReason = reason == null ? "" : reason.trim();
         if (!ACCEPT.equals(decision) && !RETURN.equals(decision) && !REFUSE.equals(decision)) {
@@ -67,6 +69,7 @@ public class DecidePaymentStatementCommand {
         }
         var now = clock.instant();
         if (ACCEPT.equals(decision)) {
+            rewardPaymentGuard.requireStatement(statementId);
             advance(statement, step, actorId, now);
             return action(step);
         }

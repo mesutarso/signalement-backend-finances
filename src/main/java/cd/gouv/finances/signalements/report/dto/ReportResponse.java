@@ -27,9 +27,8 @@ public record ReportResponse(
         @Schema(description = "Present when the caller may see the reporter.")
         String reporterUserId,
         List<PhotoResponse> photos,
-        List<AssignmentResponse> assignments,
         List<PhotoRequestResponse> photoRequests,
         List<DuplicateAlertResponse> duplicates,
-        List<QualificationResponse> qualifications,
-        List<SupervisionReviewResponse> reviews) {
+        List<SupervisionReviewResponse> reviews,
+        String validationState) {
 }

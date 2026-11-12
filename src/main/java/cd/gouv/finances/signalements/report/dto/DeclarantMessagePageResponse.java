@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record DeclarantMessagePageResponse(List<Item> items, int page, int size, long total) {
 
-    public record Item(UUID id, String reportReference, String kind, String body, Instant preparedAt) {
+    public record Item(UUID id, String reportReference, String kind, String body, Instant preparedAt,
+                       String status, Instant sentAt, String deliveryCode) {
     }
 }

@@ -24,7 +24,7 @@ public class Prime {
     @Column(name = "declarant_id", nullable = false, length = 80)
     private String declarantId;
 
-    @Column(nullable = false, length = 40)
+    @Column(length = 40)
     private String phone;
 
     @Column(name = "rule_version", nullable = false, length = 32)
@@ -32,6 +32,15 @@ public class Prime {
 
     @Column(nullable = false)
     private int threshold;
+
+    @Column(name = "report_id")
+    private UUID reportId;
+
+    @Column(name = "reward_setting_id")
+    private UUID rewardSettingId;
+
+    @Column(name = "invoice_key", length = 64)
+    private String invoiceKey;
 
     @Column(nullable = false)
     private int amount;

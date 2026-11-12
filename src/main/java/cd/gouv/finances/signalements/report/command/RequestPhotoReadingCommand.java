@@ -16,11 +16,13 @@ public class RequestPhotoReadingCommand {
 
     private final ReadReportPhotoQuery readReportPhotoQuery;
     private final RequestReadingCommand requestReadingCommand;
+    private final cd.gouv.finances.signalements.report.validation.AnalysisJobs analysisJobs;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
     public PhotoReadingResponse execute(UUID reportId, UUID photoId, boolean refresh) {
         var photo = readReportPhotoQuery.execute(reportId, photoId);
         var reading = requestReadingCommand.execute(photoId.toString(), photo.content(), mediaType(photo.contentType()), refresh);
+        analysisJobs.enqueue(reportId, false);
         return PhotoReadingMapper.from(reading);
     }
 

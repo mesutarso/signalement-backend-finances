@@ -95,16 +95,20 @@ public class SecurityConfig {
                             .hasAnyRole("SUPERVISOR", "AUDITOR", "ADMINISTRATOR", "CELLULE", "CABINET", "PAYMASTER");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-statements", "/api/payment-statements/**")
                             .hasAnyRole("SUPERVISOR", "ADMINISTRATOR", "CELLULE", "CABINET");
-                    requests.requestMatchers(HttpMethod.GET, "/api/**")
+                    requests.requestMatchers(HttpMethod.GET, "/api/reports", "/api/reports/**")
                             .hasAnyRole("AGENT", "SUPERVISOR", "AUDITOR", "ADMINISTRATOR");
+                    requests.requestMatchers("/api/reports", "/api/reports/**")
+                            .hasAnyRole("AGENT", "SUPERVISOR", "ADMINISTRATOR");
+                    requests.requestMatchers(HttpMethod.GET, "/api/**")
+                            .hasAnyRole("SUPERVISOR", "AUDITOR", "ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.POST, "/api/**")
-                            .hasAnyRole("AGENT", "SUPERVISOR", "ADMINISTRATOR");
+                            .hasAnyRole("SUPERVISOR", "ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.PUT, "/api/**")
-                            .hasAnyRole("AGENT", "SUPERVISOR", "ADMINISTRATOR");
+                            .hasAnyRole("SUPERVISOR", "ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.PATCH, "/api/**")
-                            .hasAnyRole("AGENT", "SUPERVISOR", "ADMINISTRATOR");
+                            .hasAnyRole("SUPERVISOR", "ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.DELETE, "/api/**")
-                            .hasAnyRole("AGENT", "SUPERVISOR", "ADMINISTRATOR");
+                            .hasAnyRole("SUPERVISOR", "ADMINISTRATOR");
                     requests.anyRequest().authenticated();
                 })
                 .build();

@@ -32,6 +32,7 @@ public class PaymentSourceLoader {
                 from app.prime prime
                 left join app.payout_number payout on payout.declarant_id = prime.declarant_id
                 where prime.status = 'approved'
+                  and prime.report_id is not null and (exists (select 1 from app.report r where r.id = prime.report_id and r.validation_state = 'validated'))
                   and prime.declarant_id not in (
                       select declarant_id from (
                           select distinct on (declarant_id) declarant_id, action
@@ -40,7 +41,6 @@ public class PaymentSourceLoader {
                       ) latest
                       where action = 'suspended'
                   )
-                  and (payout.lost_at is null)
                 order by prime.threshold, prime.id
                 """, (row, number) -> new Candidate(
                 row.getObject(1, UUID.class),

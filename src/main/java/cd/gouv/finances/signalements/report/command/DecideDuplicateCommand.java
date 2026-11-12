@@ -21,10 +21,13 @@ public class DecideDuplicateCommand {
     private final DuplicateAlertRepository duplicateAlertRepository;
     private final PrepareDuplicateAlerts prepareDuplicateAlerts;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry beneficiaries;
+    private final cd.gouv.finances.signalements.report.validation.AnalysisJobs analysisJobs;
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
     @Transactional
     public void execute(UUID reportId, UUID alertId, String decision, String reason, UUID actorId) {
+        beneficiaries.lock();
         if (!DECISIONS.contains(decision)) {
             throw new ReportRejected("duplicate-decision", 400);
         }
@@ -38,14 +41,20 @@ public class DecideDuplicateCommand {
             }
             throw new ReportRejected("duplicate-decided", 409);
         }
-        if (DuplicateAlert.DISMISSED.equals(chosen)) {
-            alert.dismiss(reason.trim(), actorId, clock.instant());
-            return;
-        }
-        var winner = prepareDuplicateAlerts.winner(alert.getReportId(), alert.getOtherReportId());
-        if (winner == null) {
+        var winner = DuplicateAlert.CONFIRMED.equals(chosen) ? prepareDuplicateAlerts.winner(alert.getReportId(), alert.getOtherReportId()) : null;
+        if (DuplicateAlert.CONFIRMED.equals(chosen) && winner == null) {
             throw new ReportRejected("report-absent", 404);
         }
-        alert.confirm(reason.trim(), actorId, winner.id(), clock.instant());
+        var siblings = new java.util.ArrayList<>(duplicateAlertRepository.findByReportIdOrOtherReportIdOrderByCreatedAtDesc(reportId, reportId));
+        siblings.add(alert);
+        for (var sibling : siblings) {
+            if (!sibling.getReportId().equals(alert.getReportId()) || !sibling.getOtherReportId().equals(alert.getOtherReportId())
+                    || !DuplicateAlert.OPEN.equals(sibling.getStatus())) continue;
+            if (winner == null) sibling.dismiss(reason.trim(), actorId, clock.instant());
+            else sibling.confirm(reason.trim(), actorId, winner.id(), clock.instant());
+        }
+        duplicateAlertRepository.flush();
+        analysisJobs.enqueue(alert.getReportId(), false);
+        analysisJobs.enqueue(alert.getOtherReportId(), false);
     }
 }

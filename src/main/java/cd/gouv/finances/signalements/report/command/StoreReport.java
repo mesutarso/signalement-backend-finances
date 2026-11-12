@@ -18,9 +18,11 @@ public class StoreReport {
 
     private final ReportRepository reportRepository;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.validation.AnalysisJobs analysisJobs;
 
     @Transactional
     public Outcome execute(SourcedReport incoming) {
+        analysisJobs.lock();
         var existing = reportRepository.findBySourceAndExternalId(ReportSource.NAME, incoming.externalId());
         if (existing.isEmpty()) {
             var report = new Report(
@@ -39,9 +41,16 @@ public class StoreReport {
                     clock.instant());
             var photos = addPhotos(report, incoming);
             reportRepository.save(report);
+            reportRepository.flush();
+            analysisJobs.enqueue(report.getId(), true);
             return new Outcome(true, photos);
         }
-        return new Outcome(false, addPhotos(existing.get(), incoming));
+        var photos = addPhotos(existing.get(), incoming);
+        if (photos > 0) {
+            reportRepository.flush();
+            analysisJobs.enqueue(existing.get().getId(), true);
+        }
+        return new Outcome(false, photos);
     }
 
     private static int addPhotos(Report report, SourcedReport incoming) {

@@ -21,11 +21,11 @@ public class ReviewPrimeCommand {
     private final PrimeReviewRepository primeReviewRepository;
     private final PayoutNumberRepository payoutNumberRepository;
     private final RecordPayoutCommand recordPayoutCommand;
-    private final PrimeContext primeContext;
     private final PrimeGuard primeGuard;
-    private final PrimeLoss primeLoss;
     private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.validation.RewardPaymentGuard rewardPaymentGuard;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public record Outcome(String action, UUID payoutId) {
     }
@@ -46,15 +46,13 @@ public class ReviewPrimeCommand {
         }
         beneficiaries.lock();
         var prime = primeRepository.findById(primeId).orElseThrow(() -> new ReportRejected("prime-absent", 404));
+        if (prime.getReportId() == null) throw new ReportRejected("prime-absent", 404);
         if (!Prime.PROPOSED.equals(prime.getStatus())) {
             throw new ReportRejected("prime-state", 409);
         }
         var now = clock.instant();
         var payoutId = recordPayoutCommand.execute(prime.getDeclarantId(), actorId).orElse(null);
         if (PrimeReview.APPROVED.equals(decision)) {
-            if (primeLoss.capture(prime.getDeclarantId(), now)) {
-                throw new ReportRejected("prime-lost", 409);
-            }
             if (primeGuard.suspended(prime.getDeclarantId())) {
                 throw new ReportRejected("prime-suspended", 409);
             }
@@ -62,10 +60,8 @@ public class ReviewPrimeCommand {
             if (!PrimeContext.READY.equals(payout.getState()) || payout.getPhone() == null || !payout.getPhone().equals(prime.getPhone())) {
                 throw new ReportRejected("prime-phone", 409);
             }
-            var actors = primeContext.findingActors(prime.getDeclarantId(), prime.getRuleVersion());
-            if (actors.isEmpty()) {
-                throw new ReportRejected("prime-finding", 409);
-            }
+            rewardPaymentGuard.requireValidated(prime.getReportId());
+            var actors = jdbc.queryForList("select distinct actor_id from app.assessment_event where report_id = ? and origin = 'manual'", UUID.class, prime.getReportId());
             if (actors.contains(actorId)) {
                 throw new ReportRejected("prime-separation", 409);
             }
@@ -81,7 +77,7 @@ public class ReviewPrimeCommand {
                 keptReason.isEmpty() ? null : keptReason,
                 actorId,
                 now));
-        var action = PrimeReview.APPROVED.equals(decision) ? "prime-approval" : "prime-return";
+        var action = PrimeReview.APPROVED.equals(decision) ? "reward-approval" : "reward-return";
         return new Outcome(action, payoutId);
     }
 }

@@ -9,6 +9,9 @@ public final class LetterAnnexDocument {
 
     private static final Map<String, String> FINDINGS = Map.of(
             "non-normalized", "Facture non normalisée",
+            "nonconform", "Facture non conforme à l’achat réel",
+            "vat-unregistered", "TVA facturée par une entreprise non assujettie",
+            "verification", "Vérification requise",
             "unknown-seller", "Vendeur non identifié",
             "fake-invoice", "Facture ou code non authentique",
             "understated", "Facture minorée",
@@ -21,7 +24,7 @@ public final class LetterAnnexDocument {
             "authority", "Réponse de la DGI");
     private static final Map<String, String> DECISIONS = Map.of(
             "confirm", "Constat retenu",
-            "wait", "En attente de la DGI");
+            "wait", "En attente de vérification");
 
     private LetterAnnexDocument() {
     }

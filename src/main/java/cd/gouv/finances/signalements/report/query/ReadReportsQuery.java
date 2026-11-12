@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,10 @@ public class ReadReportsQuery {
     private final ReportRepository reportRepository;
     private final AssigneeDirectory assigneeDirectory;
 
-    public record ReportSearch(String query, String state, String priority, UUID assigneeId, boolean unassigned) {
+    public record ReportSearch(String query, String state, String priority, UUID assigneeId, boolean unassigned, String validation) {
+        public ReportSearch(String query, String state, String priority, UUID assigneeId, boolean unassigned) {
+            this(query, state, priority, assigneeId, unassigned, null);
+        }
     }
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
@@ -48,11 +52,15 @@ public class ReadReportsQuery {
     }
 
     private static Specification<Report> specification(ReportSearch search, boolean includeReporter) {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        var agent = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> "ROLE_AGENT".equals(a.getAuthority()));
+        var validation = agent ? "doubt" : known(search.validation(), Set.of("queued", "analyzing", "doubt", "validated", "rejected", "legacy"));
         var state = known(search.state(), STATES);
         var unsetPriority = "unset".equals(search.priority());
         var priority = unsetPriority ? null : known(search.priority(), PRIORITIES);
         return (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
+            if (validation != null) predicates.add(builder.equal(root.get("validationState"), validation));
             if (search.query() != null && !search.query().isBlank()) {
                 var pattern = "%" + escape(search.query().trim().toLowerCase(Locale.ROOT)) + "%";
                 var matches = new ArrayList<Predicate>();

@@ -12,7 +12,6 @@ import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.report.command.DecideDuplicateCommand;
 import cd.gouv.finances.signalements.report.command.LinkPhotoRequestCommand;
 import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
-import cd.gouv.finances.signalements.report.command.RecordQualificationCommand;
 import cd.gouv.finances.signalements.report.command.RequestPhotoCommand;
 import cd.gouv.finances.signalements.report.command.RequestPhotoReadingCommand;
 import cd.gouv.finances.signalements.report.command.RequestImportCommand;
@@ -41,6 +40,9 @@ import org.springframework.test.web.servlet.MockMvc;
         "app.documentation-open=false"
 })
 class ReportControllerTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private org.springframework.jdbc.core.JdbcTemplate visibilityJdbc;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -86,9 +88,6 @@ class ReportControllerTest {
 
     @MockitoBean
     private DecideDuplicateCommand decideDuplicateCommand;
-
-    @MockitoBean
-    private RecordQualificationCommand recordQualificationCommand;
 
     @MockitoBean
     private RecordAudit recordAudit;

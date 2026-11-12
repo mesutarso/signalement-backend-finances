@@ -26,17 +26,17 @@ public class PrimeSuspensionController {
     private final SuspendPrimeRightCommand suspendPrimeRightCommand;
     private final RecordAudit recordAudit;
 
-    @GetMapping("/api/prime-suspensions")
-    @Operation(summary = "Lists the latest prime-right decision for each declarant")
+    @GetMapping("/api/reward-suspensions")
+    @Operation(summary = "Lists the latest reward-right decision for each declarant")
     public PrimeSuspensionResponse list() {
         return readPrimeSuspensionsQuery.execute();
     }
 
-    @PostMapping("/api/prime-suspensions")
-    @Operation(summary = "Suspends or restores the prime right of one declarant without merging accounts")
+    @PostMapping("/api/reward-suspensions")
+    @Operation(summary = "Suspends or restores the reward right of one declarant without merging accounts")
     public PrimeSuspensionResponse record(@RequestBody PrimeSuspensionBody body, @AuthenticationPrincipal AccountUserDetails account) {
         var reference = suspendPrimeRightCommand.execute(body.reference(), body.action(), body.reason(), account.getAccountId());
-        recordAudit.allowed(account.getAccountId(), "prime-suspension", "suspension", reference);
+        recordAudit.allowed(account.getAccountId(), "reward-suspension", "suspension", reference);
         return readPrimeSuspensionsQuery.execute();
     }
 }

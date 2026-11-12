@@ -18,6 +18,10 @@ spring:
     timeout: 8h
     redis:
       namespace: signalements:session
+  task:
+    scheduling:
+      pool:
+        size: 4
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/signalements}
     username: ${SPRING_DATASOURCE_USERNAME:signalements}
@@ -56,6 +60,15 @@ management:
       show-details: never
 
 app:
+  sms:
+    unikron:
+      endpoint: ${UNIKRON_ENDPOINT:}
+      username: ${UNIKRON_USER_NAME:}
+      app-key: ${UNIKRON_APP_KEY:}
+      sender-id: ${UNIKRON_SENDER_ID:Jabari}
+      mode: ${UNIKRON_MODE:development}
+  validation:
+    analysis-enabled: ${REPORT_ANALYSIS_ENABLED:true}
   letters:
     automation-username: ${LETTERS_AUTOMATION_USERNAME:${ACCESS_ADMIN_USERNAME:}}
     cron: ${LETTERS_CRON:0 0 7 * * MON}

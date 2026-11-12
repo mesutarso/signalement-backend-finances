@@ -38,6 +38,9 @@ import org.springframework.test.web.servlet.MockMvc;
         "app.documentation-open=false"
 })
 class AuthControllerTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private org.springframework.jdbc.core.JdbcTemplate visibilityJdbc;
+
 
     @Autowired
     private MockMvc mockMvc;

@@ -63,6 +63,9 @@ public class Report {
     @Column(nullable = false, length = 32)
     private String state = "pending";
 
+    @Column(name = "validation_state", insertable = false, updatable = false)
+    private String validationState = "queued";
+
     @Column(length = 16)
     private String priority;
 

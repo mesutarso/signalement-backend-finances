@@ -3,8 +3,6 @@ package cd.gouv.finances.signalements.report.correction;
 import cd.gouv.finances.signalements.report.ReportReference;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.entity.DecisionCorrection;
-import cd.gouv.finances.signalements.report.points.PointsContext;
-import cd.gouv.finances.signalements.report.points.ReversePointsCommand;
 import cd.gouv.finances.signalements.report.repository.DecisionCorrectionRepository;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -22,9 +20,10 @@ public class FallConfirmationCommand {
     private final JdbcTemplate jdbc;
     private final ReportReference reportReference;
     private final DecisionCorrectionRepository decisionCorrectionRepository;
-    private final PointsContext pointsContext;
-    private final ReversePointsCommand reversePointsCommand;
     private final Clock clock;
+    private final cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry beneficiaries;
+    private final cd.gouv.finances.signalements.report.validation.AssessmentStore assessmentStore;
+    private final cd.gouv.finances.signalements.report.validation.FixedRewards fixedRewards;
 
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     @Transactional
@@ -34,7 +33,7 @@ public class FallConfirmationCommand {
             throw new ReportRejected("correction-reason", 400);
         }
         var report = reportReference.require(reference);
-        pointsContext.lock();
+        beneficiaries.lock();
         var rows = jdbc.query("""
                 select id, decision
                 from app.qualification
@@ -52,9 +51,6 @@ public class FallConfirmationCommand {
         var now = clock.instant();
         var correction = new DecisionCorrection(UUID.randomUUID(), report.id(), qualificationId, keptReason, actorId, now);
         decisionCorrectionRepository.save(correction);
-        if (pointsContext.net(report.id()) > 0) {
-            reversePointsCommand.execute(report.id(), keptReason, actorId);
-        }
         jdbc.update("""
                 update app.draw_ticket ticket
                 set excluded_at = ?
@@ -67,6 +63,21 @@ public class FallConfirmationCommand {
                 insert into app.qualification (id, report_id, decision, justification, actor_id, recorded_at)
                 values (?, ?, 'reject', ?, ?, ?)
                 """, UUID.randomUUID(), report.id(), keptReason, actorId, Timestamp.from(now));
+        var modern = jdbc.queryForObject("select exists(select 1 from app.report_assessment where report_id = ?)", Boolean.class, report.id());
+        if (Boolean.TRUE.equals(modern)) {
+            var previous = assessmentStore.lock(report.id());
+            jdbc.update("update app.report set validation_state = 'rejected' where id = ?", report.id());
+            jdbc.update("""
+                    update app.report_assessment set revision = revision + 1, generation = generation + 1,
+                        job_state = 'done', lease_id = null, lease_until = null, reason = ?, updated_at = ? where report_id = ?
+                    """, keptReason, Timestamp.from(now), report.id());
+            jdbc.update("""
+                    insert into app.assessment_event values (?, ?, ?, 'correction', ?, 'rejected', ?, ?::jsonb, ?, ?)
+                    """, UUID.randomUUID(), report.id(), previous.revision() + 1, actorId, keptReason,
+                    assessmentStore.json(assessmentStore.read(report.id())),
+                    cd.gouv.finances.signalements.report.validation.ValidationRules.VERSION, Timestamp.from(now));
+            fixedRewards.reconcile(report.id(), "rejected", actorId);
+        }
         return correction.getId();
     }
 
