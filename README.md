@@ -35,7 +35,7 @@ Le contrôle des bénéficiaires, les courriers par service, le budget et les ar
 
 ## SMS Unikron
 
-Configurer `UNIKRON_ENDPOINT`, `UNIKRON_USER_NAME` et `UNIKRON_APP_KEY` dans `.env`. `UNIKRON_SENDER_ID` vaut `Jabari` par défaut. Le mode par défaut `UNIKRON_MODE=development` bloque tous les destinataires sauf `0827243119` et `0852214059`, convertis respectivement en `243827243119` et `243852214059`.
+Configurer `UNIKRON_ENDPOINT`, `UNIKRON_USER_NAME` et `UNIKRON_APP_KEY` dans `.env`. `UNIKRON_SENDER_ID` vaut `FACNO RDC` par défaut. Le mode par défaut `UNIKRON_MODE=development` bloque tous les destinataires sauf `0827243119` et `0852214059`, convertis respectivement en `243827243119` et `243852214059`.
 
 Les messages sont envoyés explicitement depuis `/messages`, par un superviseur ou administrateur. Le SMS de test est réservé aux administrateurs. Aucun brouillon existant n’est envoyé automatiquement. Les secrets, le contenu des SMS et les réponses brutes du fournisseur ne sont pas journalisés.
 

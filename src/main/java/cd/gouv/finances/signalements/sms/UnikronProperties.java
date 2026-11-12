@@ -11,7 +11,7 @@ public record UnikronProperties(String endpoint, String username, String appKey,
     public static final Set<String> TEST_RECIPIENTS = Set.of("243827243119", "243852214059");
 
     public UnikronProperties {
-        senderId = senderId == null || senderId.isBlank() ? "Jabari" : senderId.trim();
+        senderId = senderId == null || senderId.isBlank() ? "FACNO RDC" : senderId.trim();
         mode = mode == null ? Mode.DEVELOPMENT : mode;
     }
 

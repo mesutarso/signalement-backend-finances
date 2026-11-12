@@ -29,7 +29,7 @@ class UnikronSmsGatewayTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
                         {"username":"fixture-user","app_key":"fixture-key","tel":"243827243119",
-                         "message":"Message de recette","from":"Jabari"}
+                         "message":"Message de recette","from":"FACNO RDC"}
                         """))
                 .andRespond(withStatus(HttpStatus.ACCEPTED));
         var gateway = new UnikronSmsGateway(properties(), builder.build(), new UnikronConfiguration().unikronCircuitBreaker(), new ObjectMapper());

@@ -26,7 +26,7 @@ services:
       UNIKRON_ENDPOINT: ${UNIKRON_ENDPOINT:-}
       UNIKRON_USER_NAME: ${UNIKRON_USER_NAME:-}
       UNIKRON_APP_KEY: ${UNIKRON_APP_KEY:-}
-      UNIKRON_SENDER_ID: ${UNIKRON_SENDER_ID:-Jabari}
+      UNIKRON_SENDER_ID: ${UNIKRON_SENDER_ID:-FACNO RDC}
       # Maintenir la liste des deux destinataires de recette jusqu'au GO explicite.
       UNIKRON_MODE: "development"
       REPORT_ANALYSIS_ENABLED: ${REPORT_ANALYSIS_ENABLED:-true}

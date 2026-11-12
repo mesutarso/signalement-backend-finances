@@ -65,7 +65,7 @@ app:
       endpoint: ${UNIKRON_ENDPOINT:}
       username: ${UNIKRON_USER_NAME:}
       app-key: ${UNIKRON_APP_KEY:}
-      sender-id: ${UNIKRON_SENDER_ID:Jabari}
+      sender-id: ${UNIKRON_SENDER_ID:FACNO RDC}
       mode: ${UNIKRON_MODE:development}
   validation:
     analysis-enabled: ${REPORT_ANALYSIS_ENABLED:true}
