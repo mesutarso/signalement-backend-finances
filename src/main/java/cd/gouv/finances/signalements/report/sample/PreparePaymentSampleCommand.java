@@ -45,7 +45,7 @@ public class PreparePaymentSampleCommand {
                 select attempt.id, attempt.reference_code, attempt.operator, line.amount
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
-                where attempt.result = 'paid' and attempt.recorded_at >= ? and attempt.recorded_at < ?
+                where attempt.result = 'paid' and attempt.reference_code not like 'SIM-%' and attempt.recorded_at >= ? and attempt.recorded_at < ?
                 order by attempt.recorded_at, attempt.id
                 """, (row, number) -> new Paid(row.getObject(1, UUID.class), row.getString(2), row.getString(3), row.getInt(4)), Timestamp.from(from), Timestamp.from(to));
         if (paid.isEmpty()) {

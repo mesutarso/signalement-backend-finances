@@ -20,13 +20,14 @@ public class FixedRewards {
     private final Clock clock;
 
     public void reconcile(UUID reportId, String decision, UUID actorId) {
+        cd.gouv.finances.signalements.report.payment.PaymentHold.requireNoPending(jdbc, reportId);
         var now = Timestamp.from(clock.instant());
         if (!"validated".equals(decision)) {
             jdbc.update("""
                     update app.prime p set status = 'withdrawn', actor_id = ?, updated_at = ?
                     where report_id = ? and status <> 'withdrawn' and not exists (
                       select 1 from app.payment_statement_line l join app.payment_attempt a on a.line_id = l.id
-                      where l.prime_id = p.id and a.result = 'paid')
+                      where l.prime_id = p.id and a.result = 'paid' and a.reference_code not like 'SIM-%')
                     """, actorId, now, reportId);
             return;
         }
@@ -45,7 +46,7 @@ public class FixedRewards {
                 update app.prime p set status = 'proposed', phone = ?, actor_id = ?, updated_at = ?
                 where report_id = ? and status = 'withdrawn' and not exists (
                   select 1 from app.payment_statement_line l join app.payment_attempt a on a.line_id = l.id
-                  where l.prime_id = p.id and a.result = 'paid')
+                  where l.prime_id = p.id and a.result = 'paid' and a.reference_code not like 'SIM-%')
                 """, phone, actorId, now, reportId);
     }
 

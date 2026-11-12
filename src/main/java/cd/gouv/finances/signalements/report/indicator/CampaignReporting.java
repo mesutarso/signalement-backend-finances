@@ -33,7 +33,7 @@ public class CampaignReporting {
         var paid = jdbc.queryForObject("""
                 select coalesce(sum(line.amount), 0) from app.payment_statement_line line
                 join app.prime reward on reward.id = line.prime_id and reward.report_id is not null where exists (
-                    select 1 from app.payment_attempt attempt where attempt.line_id = line.id and attempt.result = 'paid')
+                    select 1 from app.payment_attempt attempt where attempt.line_id = line.id and attempt.result = 'paid' and attempt.reference_code not like 'SIM-%')
                 """, Long.class);
         return new Budget(amounts.isEmpty() ? null : amounts.getFirst(), approved == null ? 0 : approved, paid == null ? 0 : paid);
     }

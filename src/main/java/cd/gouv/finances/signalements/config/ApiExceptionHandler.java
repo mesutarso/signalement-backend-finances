@@ -179,6 +179,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ReportRejected.class)
     ResponseEntity<ApiError> reportRejected(ReportRejected rejected) {
         var workflowMessage = switch (rejected.code()) {
+            case "payment-not-configured" -> "Le service de paiement est indisponible.";
+            case "payment-recipient-blocked" -> "Ce numéro et cet opérateur ne sont pas autorisés pour les essais.";
+            case "payment-request-conflict" -> "Cette demande correspond déjà à un autre versement.";
+            case "payment-transfer-busy" -> "Un versement est déjà en cours, à confirmer ou terminé pour cette ligne.";
+            case "payment-transfer-absent" -> "Versement introuvable.";
+            case "payment-environment" -> "Ce versement appartient à un autre environnement.";
+            case "payment-beneficiary" -> "Le bénéficiaire ou son numéro de paiement doit être vérifié.";
+            case "payment-test-disabled" -> "Les essais de paiement sont désactivés.";
+            case "payment-amount" -> "Le montant du versement n’est pas accepté.";
+            case "payment-hold" -> "Un paiement est en cours ou à confirmer pour ce signalement.";
+            case "payment-simulation-retired" -> "La simulation est supprimée. Utilisez le versement Araka.";
             case "assessment-absent" -> "Vérification introuvable.";
             case "sms-state" -> "Ce message est déjà transmis, en cours d’envoi ou à confirmer.";
             case "sms-absent" -> "Message introuvable.";

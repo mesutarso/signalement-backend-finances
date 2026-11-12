@@ -60,6 +60,13 @@ management:
       show-details: never
 
 app:
+  payments:
+    araka:
+      base-url: ${ARAKAPAY_BASE_URL:https://araka-api-uat.azurewebsites.net}
+      email: ${ARAKAPAY_EMAIL:}
+      password: ${ARAKAPAY_PASSWORD:}
+      mode: ${ARAKAPAY_MODE:sandbox}
+      live-enabled: ${ARAKAPAY_LIVE_ENABLED:false}
   sms:
     unikron:
       endpoint: ${UNIKRON_ENDPOINT:}

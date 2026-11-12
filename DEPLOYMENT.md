@@ -18,6 +18,8 @@ Le réseau externe `coolify` doit exister sur le serveur et être partagé avec 
 
 ## Variables
 
+La livraison Araka ajoute V46. Configurer `ARAKAPAY_EMAIL`, `ARAKAPAY_PASSWORD` et l’URL UAT `ARAKAPAY_BASE_URL=https://araka-api-uat.azurewebsites.net`. Le Compose impose `ARAKAPAY_MODE=sandbox` et `ARAKAPAY_LIVE_ENABLED=false` ; aucune récompense réelle n’est acquittée par les essais. Sauvegarder PostgreSQL avant la migration, déployer le backend avant le frontend, puis vérifier `/etats`, les numéros sandbox, le suivi et l’absence d’effet sur les paiements réels. Ne pas activer les versements de production avant le GO explicite. Les SMS restent limités à leurs deux numéros et utilisent `FACNO RDC`.
+
 Pour cette livraison, configurer `UNIKRON_ENDPOINT`, `UNIKRON_USER_NAME`, `UNIKRON_APP_KEY` et, si nécessaire, `UNIKRON_SENDER_ID` dans Coolify. Le Compose impose `UNIKRON_MODE=development` : seuls `243827243119` et `243852214059` sont admis. Ce verrou doit rester en place jusqu’au GO explicite. Aucun envoi automatique des brouillons n’est déclenché.
 
 La livraison inclut les migrations V44 (validation et récompenses configurables) et V45 (état courant des envois SMS). Sauvegarder la base avant leur application. Déployer le backend puis le frontend, puis vérifier la connexion, la file agent, les dossiers à vérifier, `/recompenses`, `/regles` et `/messages`. Les anciennes routes `/points` et `/primes` sont supprimées.

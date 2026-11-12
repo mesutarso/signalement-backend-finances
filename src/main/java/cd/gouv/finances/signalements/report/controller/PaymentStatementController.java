@@ -7,7 +7,7 @@ import cd.gouv.finances.signalements.report.dto.PaymentDecisionBody;
 import cd.gouv.finances.signalements.report.dto.PaymentPageResponse;
 import cd.gouv.finances.signalements.report.dto.PaymentStatementResponse;
 import cd.gouv.finances.signalements.report.payment.DecidePaymentStatementCommand;
-import cd.gouv.finances.signalements.report.payment.RecordPaymentAttemptCommand;
+import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.payment.PreparePaymentStatementCommand;
 import cd.gouv.finances.signalements.report.payment.ReadPaymentStatementsQuery;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,7 +33,6 @@ public class PaymentStatementController {
     private final ReadPaymentStatementsQuery readPaymentStatementsQuery;
     private final PreparePaymentStatementCommand preparePaymentStatementCommand;
     private final DecidePaymentStatementCommand decidePaymentStatementCommand;
-    private final RecordPaymentAttemptCommand recordPaymentAttemptCommand;
     private final RecordAudit recordAudit;
 
     @GetMapping("/api/payment-statements")
@@ -84,13 +83,12 @@ public class PaymentStatementController {
     }
 
     @PostMapping("/api/payment-statements/{id}/attempts")
-    @Operation(summary = "Simulates a payment result for one authorized prime on a chosen operator")
+    @Operation(summary = "Retired simulation endpoint; results can only come from Araka")
     public PaymentStatementResponse attempt(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentAttemptBody body,
             @AuthenticationPrincipal AccountUserDetails account) {
-        var action = recordPaymentAttemptCommand.execute(id, body.lineId(), body.operator(), body.result(), body.reason(), account.getAccountId());
-        return decide(id, account, action);
+        throw new ReportRejected("payment-simulation-retired", 410);
     }
 
     private PaymentStatementResponse decide(UUID id, AccountUserDetails account, String action) {

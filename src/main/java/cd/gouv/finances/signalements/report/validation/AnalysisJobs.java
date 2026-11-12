@@ -25,6 +25,7 @@ public class AnalysisJobs {
     @Transactional
     public void enqueue(UUID reportId, boolean photosChanged) {
         beneficiaries.lock();
+        cd.gouv.finances.signalements.report.payment.PaymentHold.requireNoPending(jdbc, reportId);
         jdbc.update("""
                 insert into app.report_assessment (report_id) select id from app.report
                 where id = ? and validation_state <> 'legacy' on conflict do nothing

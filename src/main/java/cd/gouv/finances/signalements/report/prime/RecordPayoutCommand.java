@@ -25,6 +25,7 @@ public class RecordPayoutCommand {
             return Optional.empty();
         }
         var declarant = declarantId.trim();
+        primeContext.lockPaymentIdentity(declarant);
         var phone = primeContext.phone(declarant, null);
         var now = clock.instant();
         var existing = payoutNumberRepository.findByDeclarantId(declarant);

@@ -33,7 +33,7 @@ public class PrimeGuard {
                     select 1
                     from app.payment_statement_line line
                     join app.payment_attempt attempt on attempt.line_id = line.id
-                    where line.prime_id = ? and attempt.result = 'paid'
+                    where line.prime_id = ? and attempt.result = 'paid' and attempt.reference_code not like 'SIM-%'
                 )
                 """, Boolean.class, primeId);
         return Boolean.TRUE.equals(paid);

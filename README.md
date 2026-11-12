@@ -46,3 +46,25 @@ Un message transmis ou de résultat incertain ne peut pas être renvoyé par un 
 [La documentation Unikron](https://unikron.tech/doc/v0.2) impose un numéro international sans `+` ni `00`, un message de 160 caractères maximum et un expéditeur de 11 caractères maximum. Le client envoie les champs JSON `username`, `app_key`, `tel`, `message` et `from`, comme dans l’intégration PHP fournie.
 
 Vérifications : `./mvnw clean verify`, puis `python scripts/recette_sms.py --runtime <configuration privée de recette>` contre un simulateur local. Le test réel `UnikronLiveTest` reste ignoré sauf si `UNIKRON_LIVE_TEST` vaut explicitement l’un des deux numéros autorisés et si les variables Unikron sont présentes dans l’environnement du processus ; il effectue alors un seul appel réel. Ne jamais activer cette variable dans la CI.
+
+## Paiements Araka
+
+Le versement B2C utilise `POST /api/Pay/sendmobilemoney` sur `https://araka-api-uat.azurewebsites.net` et un jeton obtenu par `POST /api/login`. Configurer `ARAKAPAY_EMAIL` et `ARAKAPAY_PASSWORD` uniquement dans les secrets d’environnement. `ARAKAPAY_BASE_URL` est configurable. Le Compose de déploiement impose `ARAKAPAY_MODE=sandbox` et `ARAKAPAY_LIVE_ENABLED=false` jusqu’au GO explicite ; aucune clé du navigateur ne peut modifier cet environnement.
+
+La sandbox admet exclusivement les seize numéros fournis : `+243810000001` à `004` (MPESA), `+243840000001` à `004` (ORANGE), `+243970000001` à `004` (AIRTEL), `+243900000001` à `004` (AFRIMONEY). Un numéro national est converti en `+243…`. Le numéro doit correspondre à l’opérateur choisi. Les identifiants Araka, jetons et corps des réponses ne sont jamais journalisés.
+
+- `GET /api/payment-transfers?statementId=UUID` : état du service et versements de l’état ; sans filtre, les 30 derniers versements. Réservé aux rôles financiers et de contrôle.
+- `POST /api/payment-transfers/tests` : administrateur seulement, corps `{ "requestId": "UUID", "phone": "+243810000001", "operator": "mpesa" }`. Montant de recette fixé côté serveur à 5 000 CDF.
+- `POST /api/payment-statements/{id}/transfers` : payeur seulement, corps `{ "requestId": "UUID", "lineId": "UUID", "operator": "mpesa" }`. État autorisé, bénéficiaire et récompense contrôlés ; montant et numéro repris de la ligne, jamais du navigateur.
+- `POST /api/payment-transfers/{id}/checks` : payeur ou administrateur. Effectue uniquement une recherche de statut ; aucun nouvel envoi.
+- L’ancien endpoint `/attempts` répond 410. Les références `SIM-*` ne sont plus présentées ni utilisées comme preuve de paiement réel. Les enregistrements source restent intacts.
+
+V46 crée les réservations durables, références uniques de 20 caractères maximum, identifiants de requête, états et baux de rapprochement. La réservation est commitée avant le POST ; le résultat est enregistré dans une seconde transaction. Double clic, répétition du même identifiant et concurrence sur une ligne ne provoquent pas de second envoi. Un délai dépassé ou une erreur 5xx laisse un résultat à confirmer, sans répétition automatique du POST. Un circuit breaker et une limite de quatre appels concurrents bornent les appels externes.
+
+Le rapprochement reprend par référence après une interruption, toutes les 15 secondes, avec un maximum de 48 recherches automatiques par transaction ; la vérification manuelle reste disponible ensuite. Les réponses d’envoi `statusDescription` et les réponses de recherche `status`, y compris les tableaux retournés par référence, sont traitées. Un HTTP 200 seul ne prouve pas le paiement. Une référence incohérente ou plusieurs résultats restent à confirmer. Aucun callback anonyme n’est ouvert : la disponibilité et la signature des callbacks B2C restent à confirmer avec Araka.
+
+Les résultats sandbox restent dans `payment_transfer` et ne soldent aucune récompense, n’alimentent aucun indicateur de paiement réel et ne déclenchent aucun SMS. En production, un résultat confirmé inscrit une seule preuve dans le registre des paiements. Les corrections et changements du numéro bénéficiaire sont bloqués pendant un versement de production en cours ou incertain.
+
+Vérification locale : `scripts/recette_araka.py --runtime /chemin/prive/runtime.json` après `./mvnw clean verify`, avec les mêmes conteneurs PostgreSQL/Redis isolés que la recette de validation ; le fournisseur est un stub local et les secrets Araka ne sont pas lus. `PaymentTransfersMigrationTest` utilise `VALIDATION_JDBC_URL`, `VALIDATION_DB_USER`, `VALIDATION_DB_PASSWORD` et une base éphémère distincte. Les tests réseau `ArakaLiveTest` sont désactivés par défaut : opt-in explicite `ARAKAPAY_LIVE_TEST=sandbox-matrix`, avec les identifiants sandbox ; ils exécutent les seize cas fournis, jamais un portefeuille réel.
+
+Sources du contrat : https://araka-pay.com/documentation/introduction, https://araka-pay.com/documentation/mobile-money et Swagger UAT `/swagger/v1/swagger.json`. L’activation B2C, le CDF et le suivi ont été vérifiés sur les numéros sandbox. Cela ne constitue pas une validation de la capacité ou du financement du compte de production.

@@ -39,7 +39,7 @@ public class ReadDeclarantSituationQuery {
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
                 join app.prime prime on prime.id = line.prime_id
-                where attempt.result = 'paid' and prime.report_id is not null and prime.declarant_id = ?
+                where attempt.result = 'paid' and attempt.reference_code not like 'SIM-%' and prime.report_id is not null and prime.declarant_id = ?
                 """, declarant);
         var approved = declarant != null && count("""
                 select count(*) from app.prime where declarant_id = ? and report_id is not null and status = 'approved'

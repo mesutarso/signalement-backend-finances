@@ -34,7 +34,7 @@ public class ReadAuditQuery {
         var filters = new ArrayList<Object>();
         filters.add(Timestamp.from(start));
         filters.add(Timestamp.from(end));
-        var where = new StringBuilder(" where recorded_at >= ? and recorded_at < ? and action not in ('points-credit', 'points-reversal', 'prime-proposal', 'prime-withdrawal', 'rule-version', 'rule-activation') and object_type <> 'prime'");
+        var where = new StringBuilder(" where recorded_at >= ? and recorded_at < ? and action not in ('points-credit', 'points-reversal', 'prime-proposal', 'prime-withdrawal', 'rule-version', 'rule-activation', 'payment-paid', 'payment-failed', 'payment-unknown') and object_type <> 'prime'");
         if (present(objectType)) {
             where.append(" and object_type = ?");
             filters.add(objectType.trim());

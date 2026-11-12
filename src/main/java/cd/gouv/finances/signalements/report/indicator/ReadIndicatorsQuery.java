@@ -62,7 +62,7 @@ public class ReadIndicatorsQuery {
                 dated("select count(*) from app.letter_response where true", "received_on", from, to),
                 dated("select count(*) from app.prime where report_id is not null", "recorded_at", from, to),
                 paidAmount(from, to),
-                dated("select count(*) from app.payment_attempt where result = 'paid'", "recorded_at", from, to),
+                dated("select count(*) from app.payment_attempt where result = 'paid' and reference_code not like 'SIM-%'", "recorded_at", from, to),
                 dated("select count(*) from app.campaign_draw where true", "drawn_at", from, to),
                 dated("select count(*) from app.abuse_note where true", "recorded_at", from, to));
     }
@@ -122,7 +122,7 @@ public class ReadIndicatorsQuery {
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
                 join app.prime reward on reward.id = line.prime_id and reward.report_id is not null
-                where attempt.result = 'paid'
+                where attempt.result = 'paid' and attempt.reference_code not like 'SIM-%'
                 """;
         if (from == null) {
             return count(sql);

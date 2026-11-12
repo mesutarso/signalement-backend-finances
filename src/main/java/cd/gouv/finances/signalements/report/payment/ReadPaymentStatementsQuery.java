@@ -77,7 +77,7 @@ public class ReadPaymentStatementsQuery {
         jdbc.query("""
                 select id, line_id, result, reference_code, reason, recorded_at, operator
                 from app.payment_attempt
-                where statement_id = ?
+                where statement_id = ? and reference_code not like 'SIM-%'
                 order by recorded_at, id
                 """, (attempt, number) -> {
             attempts.computeIfAbsent(attempt.getObject(2, UUID.class), key -> new ArrayList<>()).add(new PaymentAttemptResponse(

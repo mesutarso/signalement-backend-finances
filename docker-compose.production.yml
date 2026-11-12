@@ -29,6 +29,11 @@ services:
       UNIKRON_SENDER_ID: ${UNIKRON_SENDER_ID:-FACNO RDC}
       # Maintenir la liste des deux destinataires de recette jusqu'au GO explicite.
       UNIKRON_MODE: "development"
+      ARAKAPAY_BASE_URL: ${ARAKAPAY_BASE_URL:-https://araka-api-uat.azurewebsites.net}
+      ARAKAPAY_EMAIL: ${ARAKAPAY_EMAIL:-}
+      ARAKAPAY_PASSWORD: ${ARAKAPAY_PASSWORD:-}
+      ARAKAPAY_MODE: "sandbox"
+      ARAKAPAY_LIVE_ENABLED: "false"
       REPORT_ANALYSIS_ENABLED: ${REPORT_ANALYSIS_ENABLED:-true}
       REPORTS_SCHEDULE_ENABLED: ${REPORTS_SCHEDULE_ENABLED:-true}
       REPORTS_IMPORT_ON_STARTUP: "false"

@@ -227,9 +227,9 @@ def run(cfg, sql):
     paymaster = login('validation-paymaster', password)
     call(cellule, 'POST', f"/api/payment-statements/{statement['id']}/visas", dict(result='accept'))
     call(cabinet, 'POST', f"/api/payment-statements/{statement['id']}/authorizations", dict(result='accept'))
-    call(paymaster, 'POST', f"/api/payment-statements/{statement['id']}/attempts", dict(lineId=statement['lines'][0]['id'], operator='m-pesa', result='paid'))
-    call(admin, 'POST', '/api/corrections', dict(reference='VALID-B', reason='Correction après paiement simulé'))
-    check('A paid reward remains recorded without a second payout or destructive recovery', view('VALID-B')['reward']['status'] == 'approved')
+    call(paymaster, 'POST', f"/api/payment-statements/{statement['id']}/attempts", dict(lineId=statement['lines'][0]['id'], operator='m-pesa', result='paid'), 410)
+    call(admin, 'POST', '/api/corrections', dict(reference='VALID-B', reason='Correction sans paiement confirmé'))
+    check('The retired simulation cannot protect an unpaid reward from correction', view('VALID-B')['reward']['status'] == 'withdrawn')
     check('No points were written by any new validation', sql(f"select count(*) from app.point_movement where report_id <> '{legacy_report}';") == '0')
     check('Assessment and reward settings expose only the current state', 'history' not in view('VALID-A') and 'assignments' not in call(admin, 'GET', f'/api/reports/{a_id}') and 'qualifications' not in call(admin, 'GET', f'/api/reports/{a_id}') and isinstance(call(admin, 'GET', '/api/reward-settings'), dict))
     saved = json.loads(sql(f"select evidence::text from app.assessment_event where report_id='{a_id}' and decision='validated' order by revision desc limit 1;"))
@@ -238,10 +238,13 @@ def run(cfg, sql):
 
 
 def main():
+    global BASE
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--keep-running', action='store_true')
+    parser.add_argument('--port', type=int, default=18081)
     args = parser.parse_args()
+    BASE = f'http://127.0.0.1:{args.port}'
     cfg = json.loads(args.runtime.read_text())
     database = 'validation_acceptance_' + uuid.uuid4().hex[:12]
     def sql(statement, db=None):
@@ -257,7 +260,7 @@ def main():
     env = dict(os.environ, SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:65434/' + database,
         SPRING_DATASOURCE_USERNAME=cfg['databaseUser'], SPRING_DATASOURCE_PASSWORD=cfg['databasePassword'],
         SPRING_DATA_REDIS_HOST='127.0.0.1', SPRING_DATA_REDIS_PORT='65435', SPRING_DATA_REDIS_PASSWORD=cfg['redisPassword'],
-        SPRING_SESSION_REDIS_NAMESPACE=database, SERVER_PORT='18081', ACCESS_ADMIN_USERNAME='validation-admin', ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
+        SPRING_SESSION_REDIS_NAMESPACE=database, SERVER_PORT=str(args.port), ACCESS_ADMIN_USERNAME='validation-admin', ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
         APP_FRONTEND_ORIGIN='http://localhost:3301', REPORTS_SCHEDULE_ENABLED='false', REPORTS_IMPORT_ON_STARTUP='false',
         REPORT_ANALYSIS_ENABLED='true', FACNO_BASE_URL=f'http://127.0.0.1:{source.server_port}/facno', FACNO_API_KEY='synthetic',
         HERDYS_OCR_BASE_URL=f'http://127.0.0.1:{source.server_port}/ocr', HERDYS_OCR_API_TOKEN='synthetic')

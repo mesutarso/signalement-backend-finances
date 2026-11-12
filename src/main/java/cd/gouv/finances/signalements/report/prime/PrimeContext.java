@@ -20,6 +20,16 @@ public class PrimeContext {
     public record Phone(String number, String state) {
     }
 
+    public void lockPaymentIdentity(String declarant) {
+        jdbc.queryForObject("select pg_advisory_xact_lock(783962140)", Object.class);
+        var pending = jdbc.queryForObject("""
+                select exists(select 1 from app.payment_transfer t join app.payment_statement_line l on l.id = t.line_id
+                    join app.prime p on p.id = l.prime_id where p.declarant_id = ? and t.environment = 'production'
+                    and t.state in ('submitting','pending','unknown'))
+                """, Boolean.class, declarant);
+        if (Boolean.TRUE.equals(pending)) throw new cd.gouv.finances.signalements.report.ReportRejected("payment-hold", 409);
+    }
+
     public Phone phone(String declarantId, String ruleVersion) {
         var numbers = jdbc.queryForList("""
                 select distinct btrim(report.reporter_phone)

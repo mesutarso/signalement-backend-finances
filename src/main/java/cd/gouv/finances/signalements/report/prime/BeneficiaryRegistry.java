@@ -84,7 +84,7 @@ public class BeneficiaryRegistry {
                   and (prime.status = 'approved' or exists (
                     select 1 from app.payment_statement_line line
                     join app.payment_attempt attempt on attempt.line_id = line.id
-                    where line.prime_id = prime.id and attempt.result = 'paid'))
+                    where line.prime_id = prime.id and attempt.result = 'paid' and attempt.reference_code not like 'SIM-%'))
                 """, Long.class, key, excludedPrime, excludedPrime);
         return amount == null ? 0 : amount;
     }
