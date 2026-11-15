@@ -21,6 +21,19 @@ public class AnalysisJobs {
 
     public void lock() { beneficiaries.lock(); }
 
+    @Transactional
+    public void replay(UUID reportId, java.time.Instant before) {
+        beneficiaries.lock();
+        var eligible = jdbc.queryForObject("""
+                select exists(select 1 from app.report_assessment a join app.report r on r.id = a.report_id
+                  where a.report_id = ? and a.job_state = 'done' and a.updated_at < ? and r.validation_state <> 'legacy'
+                  and not exists(select 1 from app.prime pr join app.payment_statement_line l on l.prime_id = pr.id
+                    join app.payment_attempt pay on pay.line_id = l.id
+                    where pr.report_id = r.id and pay.result = 'paid' and pay.reference_code not like 'SIM-%'))
+                """, Boolean.class, reportId, Timestamp.from(before));
+        if (Boolean.TRUE.equals(eligible)) enqueue(reportId, false);
+    }
+
     /** Also used by the importer, in its transaction, so jobs cannot outlive rolled-back photos. */
     @Transactional
     public void enqueue(UUID reportId, boolean photosChanged) {

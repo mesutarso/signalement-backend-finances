@@ -7,6 +7,7 @@ No provider, production import, notification or real payment is called.
 """
 import argparse
 import base64
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -22,7 +23,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'http://127.0.0.1:18081'
 PHOTO = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
-REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL']
+REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY']
 OCR_CALLS = []
 CHECKS = []
 
@@ -77,7 +78,7 @@ class Source(BaseHTTPRequestHandler):
         invoice = 'DUP' if reference.startswith('DUP-') else reference
         self.reply(dict(vendeur='Établissement de recette ' + invoice, nif='NIF-' + invoice, date='2026-11-10',
             montant='116000', numero='FACT-' + invoice, code='CODE-' + invoice, devise='CDF', montant_ht='100000',
-            tva='16000', taux_tva='16', montant_paye='116000', code_def=None, numero_def=None,
+            tva='0' if reference == 'REPLAY' and OCR_CALLS.count(reference) > 1 else '16000', taux_tva='16', montant_paye='116000', code_def=None, numero_def=None,
             articles=[dict(designation='Article synthétique', montant='100000')], confiance=0.99))
 
 
@@ -291,6 +292,22 @@ def run(cfg, sql):
     check('Changing fiscal status recalculates the decision and creates only one reward',
         closed['assessment']['state'] == 'rejected' and changed['assessment']['state'] == 'validated'
         and sql(f"select count(*) from app.prime where report_id='{fiscal_id}';") == '1')
+    replay_id = by_ref['REPLAY']['id']
+    replay_photo = view('REPLAY')['assessment']['photoId']
+    cutoff = cfg['replayBefore']
+    sql(f"update app.report set imported_at='{cutoff}'::timestamptz-interval '1 day' where id='{replay_id}';")
+    sql(f"update app.document_reading set created_at='{cutoff}'::timestamptz-interval '1 day' where document_reference='{replay_photo}';")
+    sql(f"update app.report_assessment set updated_at='{cutoff}'::timestamptz-interval '1 day' where report_id='{replay_id}';")
+    until(lambda: OCR_CALLS.count('REPLAY') == 2 and view('REPLAY')['assessment']['jobState'] == 'done')
+    check('Historical replay bypasses the OCR cache and refreshes automatically extracted VAT',
+        view('REPLAY')['assessment']['vatCharged'] == 'no' and view('REPLAY')['assessment']['extracted']['vatAmount'] == '0'
+        and sql(f"select count(*) from app.document_reading where document_reference='{replay_photo}';") == '2')
+    after = int(sql(f"select generation from app.report_assessment where report_id='{replay_id}';"))
+    time.sleep(1)
+    check('Completed replay retains its extraction history and does not reset verified fiscal facts',
+        view('FISCAL')['assessment']['vatStatus'] == 'unregistered' and after > 1
+        and int(sql(f"select generation from app.report_assessment where report_id='{replay_id}';")) == after
+        and OCR_CALLS.count('REPLAY') == 2)
     review('UI', session=admin, vatStatus='unknown', vatEvidence=None)
     cfg.update(api=BASE, username='validation-admin', agentUsername='validation-agent', reportId=by_ref['UI']['id'])
 
@@ -313,6 +330,7 @@ def main():
     until(lambda: subprocess.run(['docker', 'exec', cfg['postgresContainer'], 'pg_isready', '-U', cfg['databaseUser'], '-d', cfg['database']], capture_output=True).returncode == 0)
     sql('create database "' + database + '";', cfg['database'])
     cfg['recetteDatabase'] = database
+    cfg['replayBefore'] = datetime.now(timezone.utc).isoformat()
     source = ThreadingHTTPServer(('127.0.0.1',0), Source)
     threading.Thread(target=source.serve_forever, daemon=True).start()
     env = dict(os.environ, SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:65434/' + database,
@@ -320,7 +338,7 @@ def main():
         SPRING_DATA_REDIS_HOST='127.0.0.1', SPRING_DATA_REDIS_PORT='65435', SPRING_DATA_REDIS_PASSWORD=cfg['redisPassword'],
         SPRING_SESSION_REDIS_NAMESPACE=database, SERVER_PORT=str(args.port), ACCESS_ADMIN_USERNAME='validation-admin', ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
         APP_FRONTEND_ORIGIN='http://localhost:3301', REPORTS_SCHEDULE_ENABLED='false', REPORTS_IMPORT_ON_STARTUP='false',
-        REPORT_ANALYSIS_ENABLED='true', FACNO_BASE_URL=f'http://127.0.0.1:{source.server_port}/facno', FACNO_API_KEY='synthetic',
+        REPORT_ANALYSIS_ENABLED='true', REPORT_ANALYSIS_REPLAY_BEFORE=cfg['replayBefore'], APP_VALIDATION_REPLAY_DELAY='500', FACNO_BASE_URL=f'http://127.0.0.1:{source.server_port}/facno', FACNO_API_KEY='synthetic',
         HERDYS_OCR_BASE_URL=f'http://127.0.0.1:{source.server_port}/ocr', HERDYS_OCR_API_TOKEN='synthetic')
     log_path = args.runtime.parent / 'backend.log'
     with log_path.open('w') as log:

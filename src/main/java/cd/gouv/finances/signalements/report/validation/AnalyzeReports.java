@@ -19,6 +19,7 @@ public class AnalyzeReports {
     private final RequestReadingCommand reader;
     private final PrepareDuplicateAlerts duplicates;
     private final CompleteAnalysis complete;
+    private final AnalysisReplay replay;
 
     @Scheduled(fixedDelayString = "${app.validation.analysis-delay:2000}")
     public void run() {
@@ -27,9 +28,9 @@ public class AnalyzeReports {
                 for (var photo : evidence.photos(job.reportId())) {
                     if (!jobs.renew(job)) { jobs.failed(job, "analysis-superseded"); return; }
                     var existing = evidence.latest(photo.id());
-                    if (existing != null && "READ".equals(existing.status())) continue;
+                    if (replay.reusable(existing)) continue;
                     try {
-                        var reading = reader.execute(photo.id().toString(), evidence.content(photo.id()), photo.contentType());
+                        var reading = reader.execute(photo.id().toString(), evidence.content(photo.id()), photo.contentType(), replay.refresh());
                         if ("FAILED".equals(reading.status()) && !"not-configured".equals(reading.errorCode())) {
                             jobs.failed(job, reading.errorCode());
                             return;

@@ -2,6 +2,7 @@ package cd.gouv.finances.signalements.report.validation;
 
 import cd.gouv.finances.signalements.report.ReportRejected;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,7 @@ public class AssessmentEvidence {
 
     public record Photo(UUID id, String contentType) { }
     public record Reading(UUID photoId, UUID readingId, String status, String quality, String model, String errorCode,
-                          Map<String, String> fields) { }
+                          Map<String, String> fields, Instant createdAt) { }
 
     public List<Photo> photos(UUID reportId) {
         return jdbc.query("select id, content_type from app.report_photo where report_id = ? order by external_id, id",
@@ -34,16 +35,16 @@ public class AssessmentEvidence {
 
     public Reading latest(UUID photoId) {
         var rows = jdbc.query("""
-                select id, status, quality, model, error_code from app.document_reading where document_reference = ?
+                select id, status, quality, model, error_code, created_at from app.document_reading where document_reference = ?
                 order by created_at desc, id desc limit 1
-                """, (r, n) -> new Reading(photoId, r.getObject(1, UUID.class), r.getString(2), r.getString(3), r.getString(4), r.getString(5), Map.of()), photoId.toString());
+                """, (r, n) -> new Reading(photoId, r.getObject(1, UUID.class), r.getString(2), r.getString(3), r.getString(4), r.getString(5), Map.of(), r.getTimestamp(6).toInstant()), photoId.toString());
         if (rows.isEmpty()) return null;
         var reading = rows.getFirst();
         var fields = new LinkedHashMap<String, String>();
         jdbc.query("select name, value from app.extracted_field where reading_id = ? and present", r -> {
             if (r.getString(2) != null) fields.put(r.getString(1), r.getString(2));
         }, reading.readingId());
-        return new Reading(photoId, reading.readingId(), reading.status(), reading.quality(), reading.model(), reading.errorCode(), Map.copyOf(fields));
+        return new Reading(photoId, reading.readingId(), reading.status(), reading.quality(), reading.model(), reading.errorCode(), Map.copyOf(fields), reading.createdAt());
     }
 
     public String readability(UUID reportId, UUID selectedPhotoId) {

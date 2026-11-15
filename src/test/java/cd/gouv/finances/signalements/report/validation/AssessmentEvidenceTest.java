@@ -19,7 +19,7 @@ class AssessmentEvidenceTest {
         var jdbc = mock(JdbcTemplate.class);
         var photo = UUID.randomUUID();
         when(jdbc.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<AssessmentEvidence.Reading>>any(), eq(photo.toString())))
-                .thenReturn(List.of(new AssessmentEvidence.Reading(photo, UUID.randomUUID(), "FAILED", null, "test", "quota", Map.of())));
+                .thenReturn(List.of(new AssessmentEvidence.Reading(photo, UUID.randomUUID(), "FAILED", null, "test", "quota", Map.of(), java.time.Instant.EPOCH)));
         assertThat(new AssessmentEvidence(jdbc).readability(UUID.randomUUID(), photo)).isEqualTo("UNKNOWN");
     }
 
@@ -28,7 +28,7 @@ class AssessmentEvidenceTest {
         var jdbc = mock(JdbcTemplate.class);
         var photo = UUID.randomUUID();
         when(jdbc.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<AssessmentEvidence.Reading>>any(), eq(photo.toString())))
-                .thenReturn(List.of(new AssessmentEvidence.Reading(photo, UUID.randomUUID(), "READ", "UNREADABLE", "test", null, Map.of())));
+                .thenReturn(List.of(new AssessmentEvidence.Reading(photo, UUID.randomUUID(), "READ", "UNREADABLE", "test", null, Map.of(), java.time.Instant.EPOCH)));
         assertThat(new AssessmentEvidence(jdbc).readability(UUID.randomUUID(), photo)).isEqualTo("UNREADABLE");
     }
 }

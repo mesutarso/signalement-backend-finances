@@ -76,6 +76,7 @@ app:
       mode: ${UNIKRON_MODE:development}
   validation:
     analysis-enabled: ${REPORT_ANALYSIS_ENABLED:true}
+    replay-before: ${REPORT_ANALYSIS_REPLAY_BEFORE:}
   letters:
     automation-username: ${LETTERS_AUTOMATION_USERNAME:${ACCESS_ADMIN_USERNAME:}}
     cron: ${LETTERS_CRON:0 0 7 * * MON}

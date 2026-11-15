@@ -52,6 +52,12 @@ Une correction retire la récompense non payée et bloque les états de paiement
 
 ## Reprise de l’existant
 
+Pour une relecture OCR réelle du stock déjà importé, définir `REPORT_ANALYSIS_REPLAY_BEFORE` à un instant ISO-8601 fixe. Toutes les dix secondes, au plus 25 dossiers avec pièces et analyse terminée avant cet instant rejoignent la file durable. Leur date de mise à jour est contrôlée de nouveau sous le verrou métier ; un même dossier n’est pas remis en file en boucle. Les nouveaux imports continuent leur circuit normal. Aucun schéma ni service supplémentaire n’est nécessaire.
+
+Le traitement force une nouvelle extraction lorsque la dernière lecture réussie précède cet instant. Une photo déjà relue avec succès depuis cet instant est réutilisée lors d’une reprise ou d’un redémarrage. Les anciennes lectures restent conservées. Les montants de TVA issus automatiquement de l’OCR sont actualisés ; une vérification humaine justifiée est conservée. Les tentatives restent bornées par le mécanisme existant.
+
+Les dossiers historiques `legacy`, les récompenses réellement payées et les versements réels en cours ou incertains sont exclus de cette reprise. Les vérifications fiscales saisies ne sont pas réinitialisées. L’instant de reprise peut être retiré de la configuration une fois le lot terminé. L’écran actualise automatiquement les dossiers dont l’analyse est en cours et ne propose plus de lecture manuelle par photo.
+
 Les dossiers ayant déjà une qualification ou des mouvements de points sont marqués `legacy`. Leurs décisions restent consultables. Les dossiers sans décision entrent dans la nouvelle file. Les modules de points, les primes par paliers et leur historique sont retirés des écrans et des API ; aucune conversion ni nouvelle opération sur ces anciens droits n’est effectuée. Seules les récompenses par signalement sont listées et admises dans le circuit de paiement. Les anciennes écritures de base et les paiements déjà exécutés ne sont pas effacés. Les routes `/points`, `/primes`, `/api/points`, `/api/primes` et l’ancien barème `/api/rules` sont supprimés ; le circuit courant utilise `/recompenses` et `/api/rewards`.
 
 ## Vérification
