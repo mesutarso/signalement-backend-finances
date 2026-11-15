@@ -22,7 +22,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'http://127.0.0.1:18081'
 PHOTO = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
-REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI']
+REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL']
 OCR_CALLS = []
 CHECKS = []
 
@@ -46,6 +46,9 @@ class Source(BaseHTTPRequestHandler):
                 reportedDateTime=f'2026-11-11T10:{i:02}:00', invoiceProblemImages=[dict(uid=ref + '-photo')],
                 name='Déclarant de recette', email='recette@example.invalid', phone=f'09900000{i:02}', uidUser='person-' + ref)
                 for i, ref in enumerate(REFERENCES)]
+            for fixture in fixtures:
+                if fixture['uid'] == 'MIXED':
+                    fixture['invoiceProblemImages'].append(dict(uid='MIXED-UNREADABLE-photo'))
             self.reply(dict(problems=fixtures[(page-1)*size:page*size], hasNext=page*size < len(fixtures)))
         elif '/GetImage/' in parsed.path:
             reference = parsed.path.rsplit('/', 1)[1].removesuffix('-photo')
@@ -67,6 +70,10 @@ class Source(BaseHTTPRequestHandler):
         body = json.loads(raw)
         reference = base64.b64decode(body['image'])[len(PHOTO):].decode()
         OCR_CALLS.append(reference)
+        if reference in ['UNREADABLE', 'MIXED-UNREADABLE']:
+            self.reply(dict(vendeur=None, nif=None, date=None, montant=None, numero=None, code=None,
+                articles=[], confiance=0.99))
+            return
         invoice = 'DUP' if reference.startswith('DUP-') else reference
         self.reply(dict(vendeur='Établissement de recette ' + invoice, nif='NIF-' + invoice, date='2026-11-10',
             montant='116000', numero='FACT-' + invoice, code='CODE-' + invoice, devise='CDF', montant_ht='100000',
@@ -118,8 +125,9 @@ def run(cfg, sql):
     call(admin, 'POST', '/api/report-imports', dict(start='2026-11-01', end='2026-11-30'), 202)
     reports = until(lambda: (data if (data := call(admin, 'GET', '/api/reports?size=100'))['total'] == len(REFERENCES) else None))
     by_ref = {r['identifier']: r for r in reports['reports']}
-    until(lambda: all(r['validationState'] == 'doubt' for r in call(admin, 'GET', '/api/reports?size=100')['reports']))
-    check('Automatic extraction completes without inventing fiscal verification', len(OCR_CALLS) == len(REFERENCES))
+    until(lambda: all(r['validationState'] == ('rejected' if r['identifier'] == 'UNREADABLE' else 'doubt')
+        for r in call(admin, 'GET', '/api/reports?size=100')['reports']))
+    check('Automatic extraction completes without fiscal API access', len(OCR_CALLS) == len(REFERENCES) + 1)
     legacy_report, legacy_prime, legacy_actor = (str(uuid.uuid4()) for _ in range(3))
     sql(f"insert into app.report (id,external_id,source,reference_code,reported_on,reported_at,title,description,imported_at,reporter_user_id,validation_state) values ('{legacy_report}','LEGACY','test','LEGACY',current_date,now(),'Ancien dossier de recette','Données synthétiques',now(),'legacy-person','legacy');")
     sql(f"insert into app.point_movement (id,report_id,declarant_id,tax_id,finding,base_points,bonus_points,kind,rule_version,dgi_reference,filed_on,actor_id,recorded_at) values ('{uuid.uuid4()}','{legacy_report}','legacy-person','OLD-NIF','non-normalized',30,0,'credit','cdc-2026-10-28','OLD-REF',current_date,'{legacy_actor}',now());")
@@ -148,11 +156,27 @@ def run(cfg, sql):
         return call(session, 'POST', f"/api/reports/{by_ref[ref]['id']}/assessment", data or body(ref, **changes))
 
     a_id = by_ref['VALID-A']['id']
+    initial = view('VALID-A')
+    check('Precalculation is available with unknown fiscal status and no DGI API',
+        initial['precalculation']['analysisComplete'] and initial['precalculation']['fiscalStatusMissing']
+        and not initial['fiscalApiAvailable'] and initial['assessment']['vatStatus'] == 'unknown')
+    prepared = review('VALID-A', vatStatus='unknown', vatEvidence=None)
+    check('Both fiscal outcomes are calculated before an agent enters VAT status',
+        prepared['assessment']['state'] == 'doubt' and prepared['precalculation']['onlyFiscalStatusMissing']
+        and prepared['precalculation']['ifRegistered']['state'] == prepared['precalculation']['ifUnregistered']['state'] == 'validated')
     invalid = body('VALID-A', vatEvidence=None)
     call(agent, 'POST', f'/api/reports/{a_id}/assessment', invalid, 400)
     check('A fiscal claim without its evidence is refused', view('VALID-A')['reward'] is None)
     first_body = body('VALID-A')
-    first = review('VALID-A', data=first_body)
+    fiscal_body = dict(revision=prepared['assessment']['revision'], vatStatus='registered', vatEvidence='Contrôle fiscal fictif sans API DGI-REP')
+    call(agent, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', dict(fiscal_body, vatEvidence=' '), 400)
+    call(auditor, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body, 403)
+    first = call(agent, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body)
+    check('Fiscal-only submission preserves extracted data and all non-fiscal facts',
+        all(first['assessment'][key] == prepared['assessment'][key] for key in ['photoId','sellerName','sellerTaxId','documentNumber',
+            'documentDate','normalization','normalizationEvidence','purchaseConformity','purchaseEvidence','vatCharged','vatChargeEvidence',
+            'uniqueness','uniquenessEvidence','extracted','readings']) and first['assessment']['checkedBy'] is not None)
+    call(admin, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body, 409)
     check('Registered seller and non-normalized invoice earn exactly 5000 FC', first['assessment']['state'] == 'validated' and first['reward']['amount'] == 5000)
     photo_id = first['assessment']['photoId']
     call(agent, 'GET', f'/api/reports/{a_id}', expected=403)
@@ -234,6 +258,40 @@ def run(cfg, sql):
     check('Assessment and reward settings expose only the current state', 'history' not in view('VALID-A') and 'assignments' not in call(admin, 'GET', f'/api/reports/{a_id}') and 'qualifications' not in call(admin, 'GET', f'/api/reports/{a_id}') and isinstance(call(admin, 'GET', '/api/reward-settings'), dict))
     saved = json.loads(sql(f"select evidence::text from app.assessment_event where report_id='{a_id}' and decision='validated' order by revision desc limit 1;"))
     check('Decision proofs remain traceable internally', saved['vatEvidence'] and saved['documentDate'] == '2026-11-10' and len(saved['readings']) == 1)
+
+    unreadable = view('UNREADABLE')
+    unreadable_id = by_ref['UNREADABLE']['id']
+    check('Unreadable photo is automatically rejected without fiscal status or replacement request',
+        unreadable['assessment']['state'] == 'rejected' and unreadable['reward'] is None
+        and unreadable['assessment']['vatStatus'] == 'unknown'
+        and unreadable['precalculation']['ifRegistered']['state'] == unreadable['precalculation']['ifUnregistered']['state'] == 'rejected'
+        and sql(f"select count(*) from app.photo_request where report_id='{unreadable_id}';") == '0')
+    call(admin, 'POST', f"/api/reports/{unreadable_id}/photos/{unreadable['assessment']['photoId']}/requests", dict(reason='Nouvelle photo'), 410)
+    check('A legacy client cannot create a replacement photo request or a message',
+        sql(f"select count(*) from app.declarant_message where report_id='{unreadable_id}';") == '0')
+    call(admin, 'POST', '/api/declarant-messages', dict(reference='UNREADABLE', kind='photo'), 410)
+    retired_message = str(uuid.uuid4())
+    sql(f"insert into app.declarant_message (id,report_id,report_reference,kind,body,status,prepared_by,prepared_at) values ('{retired_message}','{unreadable_id}','UNREADABLE','photo','Ancien brouillon synthétique','prepared','{uuid.uuid4()}',now());")
+    call(admin, 'POST', f'/api/declarant-messages/{retired_message}/deliveries', expected=410)
+    check('Retired photo message drafts cannot be sent or recreated',
+        sql(f"select status from app.declarant_message where id='{retired_message}';") == 'prepared')
+    check('An unreadable attachment does not reject a report that also has a readable photo',
+        view('MIXED')['assessment']['state'] == 'doubt')
+
+    fiscal_prepared = review('FISCAL', vatStatus='unknown', vatEvidence=None, normalization='normalized',
+        normalizationEvidence='Normalisation vérifiée en recette', purchaseConformity='conform', purchaseEvidence='Achat réel vérifié en recette')
+    fiscal_id = by_ref['FISCAL']['id']
+    check('The two fiscal branches can lead to different decisions',
+        fiscal_prepared['precalculation']['ifRegistered']['state'] == 'rejected'
+        and fiscal_prepared['precalculation']['ifUnregistered']['state'] == 'validated')
+    closed = call(agent, 'POST', f'/api/reports/{fiscal_id}/assessment/fiscal-status',
+        dict(revision=fiscal_prepared['assessment']['revision'], vatStatus='registered', vatEvidence='Source fiscale fictive A'))
+    changed = call(admin, 'POST', f'/api/reports/{fiscal_id}/assessment/fiscal-status',
+        dict(revision=closed['assessment']['revision'], vatStatus='unregistered', vatEvidence='Source fiscale fictive corrigée B'))
+    check('Changing fiscal status recalculates the decision and creates only one reward',
+        closed['assessment']['state'] == 'rejected' and changed['assessment']['state'] == 'validated'
+        and sql(f"select count(*) from app.prime where report_id='{fiscal_id}';") == '1')
+    review('UI', session=admin, vatStatus='unknown', vatEvidence=None)
     cfg.update(api=BASE, username='validation-admin', agentUsername='validation-agent', reportId=by_ref['UI']['id'])
 
 

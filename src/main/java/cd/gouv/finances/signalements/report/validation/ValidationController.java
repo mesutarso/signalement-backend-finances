@@ -33,6 +33,14 @@ public class ValidationController {
         return store.view(id);
     }
 
+    @PostMapping("/api/reports/{id}/assessment/fiscal-status")
+    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    public AssessmentStore.View fiscalStatus(@PathVariable UUID id, @Valid @RequestBody FiscalStatusReview body,
+                                             @AuthenticationPrincipal AccountUserDetails account) {
+        review.fiscalStatus(id, body, account.getAccountId());
+        return store.view(id);
+    }
+
     @PostMapping("/api/reports/{id}/analysis")
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
     public AssessmentStore.View analyze(@PathVariable UUID id) {

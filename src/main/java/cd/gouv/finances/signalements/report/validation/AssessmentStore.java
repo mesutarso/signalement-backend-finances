@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 public class AssessmentStore {
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final AssessmentEvaluation evaluation;
 
     public record Snapshot(UUID reportId, long revision, String state, String jobState, String reason,
                            UUID photoId, String sellerName, String sellerTaxId, String documentNumber,
@@ -30,7 +31,8 @@ public class AssessmentStore {
                            List<AssessmentEvidence.Reading> readings,
                            Instant updatedAt) { }
     public record Reward(UUID id, int amount, String status, Instant recordedAt) { }
-    public record View(Snapshot assessment, Reward reward, boolean fiscalApiAvailable) { }
+    public record View(Snapshot assessment, Reward reward, boolean fiscalApiAvailable,
+                       PrecalculatedAssessment precalculation) { }
 
     public Snapshot read(UUID reportId) { return read(reportId, false); }
     public Snapshot lock(UUID reportId) { return read(reportId, true); }
@@ -48,7 +50,8 @@ public class AssessmentStore {
         var snapshot = read(reportId);
         var rewards = jdbc.query("select id, amount, status, recorded_at from app.prime where report_id = ?",
                 (r, n) -> new Reward(r.getObject(1, UUID.class), r.getInt(2), r.getString(3), r.getTimestamp(4).toInstant()), reportId);
-        return new View(snapshot, rewards.isEmpty() ? null : rewards.getFirst(), false);
+        return new View(snapshot, rewards.isEmpty() ? null : rewards.getFirst(), false,
+                evaluation.calculate(snapshot).precalculation());
     }
 
     public String json(Object value) { return mapper.writeValueAsString(value); }

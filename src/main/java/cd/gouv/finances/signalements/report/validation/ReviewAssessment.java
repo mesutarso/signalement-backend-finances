@@ -27,11 +27,25 @@ public class ReviewAssessment {
 
     @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
     @Transactional
+    public void fiscalStatus(UUID reportId, FiscalStatusReview review, UUID actorId) {
+        beneficiaries.lock();
+        var current = store.lock(reportId);
+        requireCurrent(current, review.revision());
+        require(review.vatStatus(), Set.of("registered", "unregistered"), review.vatEvidence());
+        var now = Timestamp.from(clock.instant());
+        jdbc.update("""
+                update app.report_assessment set vat_status = ?, vat_evidence = ?, vat_source = 'manual',
+                    checked_by = ?, checked_at = ?, updated_at = ? where report_id = ?
+                """, review.vatStatus(), clean(review.vatEvidence()), actorId, now, now, reportId);
+        decision.apply(reportId, "manual", actorId);
+    }
+
+    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @Transactional
     public void execute(UUID reportId, AssessmentReview review, UUID actorId) {
         beneficiaries.lock();
         var current = store.lock(reportId);
-        if (current.revision() != review.revision()) throw new ReportRejected("stale", 409);
-        if (!"done".equals(current.jobState())) throw new ReportRejected("assessment-busy", 409);
+        requireCurrent(current, review.revision());
         require(review.vatStatus(), Set.of("unknown", "registered", "unregistered"), review.vatEvidence());
         require(review.normalization(), Set.of("unknown", "normalized", "non-normalized"), review.normalizationEvidence());
         require(review.purchaseConformity(), Set.of("unknown", "conform", "nonconform"), review.purchaseEvidence());
@@ -63,6 +77,11 @@ public class ReviewAssessment {
     private static void require(String value, Set<String> allowed, String proof) {
         if (value == null || !allowed.contains(value)) throw new ReportRejected("assessment-value", 400);
         if (!"unknown".equals(value) && clean(proof) == null) throw new ReportRejected("assessment-evidence", 400);
+    }
+
+    private static void requireCurrent(AssessmentStore.Snapshot current, long revision) {
+        if (current.revision() != revision) throw new ReportRejected("stale", 409);
+        if (!"done".equals(current.jobState())) throw new ReportRejected("assessment-busy", 409);
     }
 
     private static String clean(String text) { return text == null || text.isBlank() ? null : text.trim(); }

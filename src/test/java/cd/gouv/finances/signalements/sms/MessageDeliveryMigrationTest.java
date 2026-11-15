@@ -47,6 +47,14 @@ class MessageDeliveryMigrationTest {
         store.complete(new MessageDeliveryStore.Submission(message, attempt, UnikronProperties.TEST_PHONE, "Message synthétique"), new SmsResult("accepted", "accepted", 202));
         assertThat(new ReadDeclarantMessagesQuery(jdbc).execute(0).items().getFirst().status()).isEqualTo("accepted");
         assertThatThrownBy(() -> store.claim(message)).isInstanceOf(ReportRejected.class);
+        var retired = UUID.randomUUID();
+        jdbc.update("""
+                insert into app.declarant_message (id,report_id,report_reference,kind,body,status,prepared_by,prepared_at)
+                values (?,?,'SMS','photo','Ancienne demande de recette','prepared',?,now())
+                """, retired, report, UUID.randomUUID());
+        assertThatThrownBy(() -> store.claim(retired)).isInstanceOf(ReportRejected.class)
+                .extracting(error -> ((ReportRejected) error).code()).isEqualTo("photo-request-retired");
+        assertThat(jdbc.queryForObject("select status from app.declarant_message where id=?", String.class, retired)).isEqualTo("prepared");
     }
 
     private static MessageDeliveryStore.Submission claim(MessageDeliveryStore store, UUID id) {

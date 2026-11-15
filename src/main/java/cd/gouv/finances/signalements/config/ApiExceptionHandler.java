@@ -191,6 +191,7 @@ public class ApiExceptionHandler {
             case "payment-hold" -> "Un paiement est en cours ou à confirmer pour ce signalement.";
             case "payment-simulation-retired" -> "La simulation est supprimée. Utilisez le versement Araka.";
             case "assessment-absent" -> "Vérification introuvable.";
+            case "photo-request-retired" -> "Les photos illisibles entraînent un rejet. Les demandes d’une autre photo sont désactivées.";
             case "sms-state" -> "Ce message est déjà transmis, en cours d’envoi ou à confirmer.";
             case "sms-absent" -> "Message introuvable.";
             case "sms-test-disabled" -> "Les essais SMS sont désactivés.";

@@ -12,19 +12,13 @@ import org.springframework.stereotype.Component;
 public class AssessmentDecision {
     private final JdbcTemplate jdbc;
     private final AssessmentStore store;
-    private final AssessmentEvidence evidence;
+    private final AssessmentEvaluation evaluation;
     private final FixedRewards rewards;
     private final Clock clock;
 
     public void apply(UUID reportId, String origin, UUID actorId) {
         var assessment = store.read(reportId);
-        var uniqueness = "duplicate".equals(evidence.duplicateStatus(reportId)) ? "duplicate" : assessment.uniqueness();
-        var decision = ValidationRules.assess(new ValidationRules.Facts(assessment.vatStatus(), assessment.normalization(),
-                assessment.purchaseConformity(), assessment.vatCharged(), uniqueness, assessment.photoId() != null,
-                !blank(assessment.sellerName()), evidence.unresolvedDuplicates(reportId)));
-        if ("validated".equals(decision.state()) && rewards.alreadyRewarded(reportId)) {
-            decision = new ValidationRules.Decision("doubt", null, "Une facture de même référence a déjà donné droit à une récompense. Vérifiez la date et le doublon.");
-        }
+        var decision = evaluation.calculate(assessment).decision();
         var now = Timestamp.from(clock.instant());
         var nextRevision = assessment.revision() + 1;
         jdbc.update("update app.report_assessment set revision = ?, reason = ?, updated_at = ? where report_id = ?",

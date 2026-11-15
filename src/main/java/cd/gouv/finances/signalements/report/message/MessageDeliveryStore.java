@@ -27,11 +27,14 @@ public class MessageDeliveryStore {
                 update app.declarant_message m set status = 'sending', send_attempt_id = ?, send_started_at = ?,
                   recipient = (select regexp_replace(coalesce(r.reporter_phone, ''), '[^0-9]', '', 'g') from app.report r where r.id = m.report_id),
                   delivery_code = null, provider_status = null
-                where m.id = ? and m.status in ('prepared', 'failed')
+                where m.id = ? and m.status in ('prepared', 'failed') and m.kind <> 'photo'
                 returning recipient, body
                 """, (row, number) -> new Submission(messageId, attemptId, UnikronProperties.cleanPhone(row.getString(1)), row.getString(2)),
                 attemptId, Timestamp.from(clock.instant()), messageId);
         if (claimed.isEmpty()) {
+            if (Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from app.declarant_message where id = ? and kind = 'photo')", Boolean.class, messageId))) {
+                throw new ReportRejected("photo-request-retired", 410);
+            }
             var exists = jdbc.queryForObject("select exists(select 1 from app.declarant_message where id = ?)", Boolean.class, messageId);
             throw new ReportRejected(Boolean.TRUE.equals(exists) ? "sms-state" : "sms-absent", Boolean.TRUE.equals(exists) ? 409 : 404);
         }

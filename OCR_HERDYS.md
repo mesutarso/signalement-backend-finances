@@ -1,6 +1,6 @@
 # Intégration OCR Herdys
 
-Le backend consomme l’API livrée dans `ocr-flask-coolify` sans modifier son code. Les opérations restent déclenchées par un agent ; aucun traitement automatique de l’historique n’est lancé.
+Le backend consomme l’API livrée dans `ocr-flask-coolify` sans modifier son code. L’import programme automatiquement la lecture des nouvelles pièces dans la file persistante, puis leur classement selon les critères. Le dossier affiche le résultat sans bouton de lecture manuelle. L’absence de DGI-REP ne bloque pas cette extraction ; l’agent complète le statut TVA.
 
 ## Configuration
 
@@ -55,7 +55,7 @@ La table existante `extracted_field` accueille ces valeurs : aucune migration de
 
 Une réponse contenant `erreur`, une enveloppe dépourvue des six clés initiales, une confiance hors de [0,1], des types invalides ou des articles trop longs est rejetée comme réponse inexploitable. Une extraction avec ces clés à null reste une lecture valide mais illisible.
 
-L’extraction est une aide à l’examen humain. Elle ne vérifie pas FACNO/DGIREP, ne confirme pas de fraude et ne déclenche pas de points.
+L’extraction prépare les faits pour le moteur de validation sans vérifier DGI-REP ni déclencher de points. Une extraction réussie classée `UNREADABLE` entraîne le rejet du signalement selon les règles de [validation](VALIDATION.md), sans demande d’une autre photo. Les incidents techniques OCR restent distincts de l’illisibilité.
 
 ## Cache et relance
 
@@ -64,9 +64,9 @@ POST /api/reports/{reportId}/photos/{photoId}/readings
 POST /api/reports/{reportId}/photos/{photoId}/readings?refresh=true
 ```
 
-Le premier appel réutilise un succès seulement si la photo, son empreinte, la version de schéma et le parcours fournisseur correspondent. Le second crée une nouvelle tentative même après un succès ; le bouton « Relancer » l’utilise. Les lectures précédentes restent en base et le dossier affiche la dernière tentative.
+Le premier appel réutilise un succès seulement si la photo, son empreinte, la version de schéma et le parcours fournisseur correspondent. Le second crée une nouvelle tentative même après un succès ; il reste disponible pour les reprises d’exploitation autorisées. Les lectures précédentes restent en base et le dossier affiche la dernière tentative.
 
-Les échecs peuvent être retentés. Deux lectures simultanées d’une même photo sont refusées par un HTTP 409 **dans la même instance backend**. Le déploiement documenté utilise une instance ; cette protection devra devenir distribuée avant plusieurs réplicas. La file persistante et la lecture automatique après import restent une étape distincte.
+Les échecs peuvent être retentés. Deux lectures simultanées d’une même photo sont refusées par un HTTP 409 **dans la même instance backend**. Le déploiement documenté utilise une instance ; cette protection devra devenir distribuée avant plusieurs réplicas. La file persistante de validation assure maintenant la lecture automatique après import et la reprise des analyses interrompues.
 
 ## Erreurs
 

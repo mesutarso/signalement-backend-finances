@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import cd.gouv.finances.signalements.ocr.dto.ReadingResponse;
 import cd.gouv.finances.signalements.ocr.query.ReadDocumentReadingsQuery;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.entity.PhotoRequest;
@@ -19,7 +18,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -48,74 +46,15 @@ class RequestPhotoCommandTest {
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-06T20:00:00Z"), ZoneOffset.UTC);
 
     @Test
-    void keepsTheOriginalReportAndRecordsAnOpenRequest() {
-        var reportId = UUID.randomUUID();
-        var photoId = UUID.randomUUID();
-        var actorId = UUID.randomUUID();
-        when(reportPhotoRepository.existsByIdAndReport_Id(photoId, reportId)).thenReturn(true);
-        when(photoRequestRepository.findFirstByPhotoIdAndStatus(photoId, PhotoRequest.OPEN)).thenReturn(Optional.empty());
-        when(readDocumentReadingsQuery.latest(List.of(photoId.toString()))).thenReturn(Map.of(
-                photoId.toString(),
-                new ReadingResponse(
-                        UUID.randomUUID(),
-                        photoId.toString(),
-                        "READ",
-                        "UNREADABLE",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of(),
-                        null)));
-        when(photoRequestRepository.nextNumber()).thenReturn(12L);
-        when(photoRequestRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var command = new RequestPhotoCommand(
-                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts, clock);
-
-        var created = command.execute(reportId, photoId, "  La photo est floue.  ", actorId);
-
-        assertThat(created.referenceCode()).isEqualTo("NP-2026-000012");
-        assertThat(created.basis()).isEqualTo(PhotoRequest.READING);
-        assertThat(created.status()).isEqualTo(PhotoRequest.OPEN);
-        assertThat(created.reason()).isEqualTo("La photo est floue.");
-        assertThat(created.notice()).isEqualTo(PhotoRequest.WAITING);
-        verify(reportRepository, never()).save(any());
-    }
-
-    @Test
-    void reusesTheOpenRequest() {
-        var reportId = UUID.randomUUID();
-        var photoId = UUID.randomUUID();
-        var existing = new PhotoRequest(
-                UUID.randomUUID(),
-                "NP-2026-000001",
-                reportId,
-                photoId,
-                "Déjà demandée",
-                PhotoRequest.REVIEW,
-                UUID.randomUUID(),
-                clock.instant());
-        when(reportPhotoRepository.existsByIdAndReport_Id(photoId, reportId)).thenReturn(true);
-        when(photoRequestRepository.findFirstByPhotoIdAndStatus(photoId, PhotoRequest.OPEN)).thenReturn(Optional.of(existing));
-        var command = new RequestPhotoCommand(
-                reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts, clock);
-
-        var again = command.execute(reportId, photoId, "Autre motif", UUID.randomUUID());
-
-        assertThat(again.referenceCode()).isEqualTo("NP-2026-000001");
-        verify(photoRequestRepository, never()).saveAndFlush(any());
+    void refusesNewPhotoRequestsWithoutWritingOrPreparingAMessage() {
+        var command = new RequestPhotoCommand();
+        assertThatThrownBy(() -> command.execute(UUID.randomUUID(), UUID.randomUUID(), "Photo floue", UUID.randomUUID()))
+                .isInstanceOf(ReportRejected.class)
+                .satisfies(error -> {
+                    assertThat(((ReportRejected) error).code()).isEqualTo("photo-request-retired");
+                    assertThat(((ReportRejected) error).status()).isEqualTo(410);
+                });
+        org.mockito.Mockito.verifyNoInteractions(reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts);
     }
 
     @Test

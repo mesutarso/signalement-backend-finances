@@ -21,7 +21,7 @@ public class ReadDocumentModelsQuery {
         var models = jdbc.query("""
                 select kind, body, recorded_at
                 from app.document_model
-                where active = true
+                where active = true and kind <> 'photo'
                 order by kind
                 """, (row, number) -> new DocumentModelResponse.Item(
                 row.getString(1),

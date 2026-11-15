@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /** The approved five-criterion policy. Unknown evidence never becomes a positive finding. */
 public final class ValidationRules {
-    public static final String VERSION = "five-criteria-2026-11-12";
+    public static final String VERSION = "criteria-readable-2026-11-15";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     private ValidationRules() { }
@@ -13,6 +13,21 @@ public final class ValidationRules {
                         String vatCharged, String uniqueness, boolean documentPresent,
                         boolean identityPresent, boolean unresolvedDuplicates) { }
     public record Decision(String state, String finding, String reason) { }
+
+    public static Decision assess(Facts facts, boolean alreadyRewarded) {
+        return assess(facts, alreadyRewarded, "UNKNOWN");
+    }
+
+    public static Decision assess(Facts facts, boolean alreadyRewarded, String readability) {
+        if ("UNREADABLE".equals(readability)) {
+            return new Decision("rejected", null, "La photo est illisible. Le signalement est rejeté sans demande d’une autre photo.");
+        }
+        var decision = assess(facts);
+        if ("validated".equals(decision.state()) && alreadyRewarded) {
+            return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez la date et le doublon.");
+        }
+        return decision;
+    }
 
     public static Decision assess(Facts facts) {
         if ("duplicate".equals(facts.uniqueness())) {
