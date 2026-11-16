@@ -53,8 +53,20 @@ class UnikronSmsGatewayTest {
         assertThat(properties().permitted(UnikronProperties.cleanPhone("00243827243119"))).isTrue();
         assertThat(properties().permitted(UnikronProperties.cleanPhone("0852214059"))).isTrue();
         assertThat(properties().permitted(UnikronProperties.cleanPhone("+243 852 214 059"))).isTrue();
-        assertThat(gateway.send(UnikronProperties.TEST_PHONE, "x".repeat(161)).code()).isEqualTo("invalid-message");
+        assertThat(gateway.send(UnikronProperties.TEST_PHONE, "x".repeat(101)).code()).isEqualTo("invalid-message");
+        assertThat(gateway.send(UnikronProperties.TEST_PHONE, "Merci\nBonjour").code()).isEqualTo("invalid-message");
         assertThat(new UnikronProperties(ENDPOINT, "fixture-user", "fixture-key", "x".repeat(12), null).configured()).isFalse();
+        server.verify();
+    }
+
+    @Test void sendsExactlyOneHundredCharactersButNeverOneHundredAndOne() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(ENDPOINT)).andRespond(withSuccess());
+        var gateway = new UnikronSmsGateway(properties(),builder.build(),new UnikronConfiguration().unikronCircuitBreaker(),new ObjectMapper());
+        assertThat(gateway.send(UnikronProperties.TEST_PHONE,"é".repeat(100)).status()).isEqualTo("accepted");
+        assertThat(gateway.send(UnikronProperties.TEST_PHONE,"é".repeat(101)).code()).isEqualTo("invalid-message");
+        assertThat(gateway.send(UnikronProperties.TEST_PHONE,"😀".repeat(51)).code()).isEqualTo("invalid-message");
         server.verify();
     }
 

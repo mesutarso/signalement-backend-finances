@@ -12,7 +12,7 @@ class DeclarantMessageTextTest {
     void mentionsOnlyTheReportReference() {
         var body = DeclarantMessageText.body(DeclarantMessageText.SITUATION, "SIG-1");
 
-        assertThat(body).isEqualTo("La situation du signalement SIG-1 a été mise à jour.");
+        assertThat(body).isEqualTo("Votre signalement SIG-1 a été mis à jour. Consultez votre espace.");
         assertThat(body).doesNotContain("@");
     }
 
@@ -21,5 +21,26 @@ class DeclarantMessageTextTest {
         assertThatThrownBy(() -> DeclarantMessageText.body(DeclarantMessageText.PHOTO, "SIG-1"))
                 .isInstanceOf(ReportRejected.class)
                 .extracting(error -> ((ReportRejected) error).code()).isEqualTo("photo-request-retired");
+    }
+
+    @Test void boundsTheFinalSmsIncludingItsReferenceAndLiteralPercentSigns() {
+        var reference = "12345678-1234-1234-1234-123456789abc";
+        for (var kind : new String[] {"payout", "reexamination", "situation"}) {
+            assertThat(DeclarantMessageText.body(kind, reference)).hasSizeLessThanOrEqualTo(100).contains(reference);
+        }
+        assertThat(DeclarantMessageText.render("x".repeat(64) + "%s", reference)).hasSize(100);
+        assertThatThrownBy(() -> DeclarantMessageText.render("x".repeat(65) + "%s", reference))
+                .isInstanceOf(ReportRejected.class).extracting(e -> ((ReportRejected)e).code()).isEqualTo("message-length");
+        assertThat(DeclarantMessageText.render("100% reçu : %s", "SIG-1")).isEqualTo("100% reçu : SIG-1");
+        assertThatThrownBy(() -> DeclarantMessageText.validatePattern("Bonjour %s %s", 36)).isInstanceOf(ReportRejected.class);
+        assertThatThrownBy(() -> DeclarantMessageText.validatePattern("Bonjour\n%s", 36)).isInstanceOf(ReportRejected.class);
+        assertThatThrownBy(() -> DeclarantMessageText.validatePattern("x".repeat(64) + "%s", 37)).isInstanceOf(ReportRejected.class);
+    }
+
+    @Test void humanizesOnlyUntouchedSystemDefaultsAndPreservesAdministratorEdits() {
+        var legacy = "La situation du signalement %s a été mise à jour.";
+        assertThat(DeclarantMessageText.effectivePattern("situation", legacy, true)).startsWith("Votre signalement");
+        assertThat(DeclarantMessageText.effectivePattern("situation", legacy, false)).isEqualTo(legacy);
+        assertThat(DeclarantMessageText.effectivePattern("situation", "Bonjour %s", true)).isEqualTo("Bonjour %s");
     }
 }

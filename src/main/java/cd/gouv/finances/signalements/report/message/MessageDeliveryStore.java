@@ -39,6 +39,7 @@ public class MessageDeliveryStore {
             throw new ReportRejected(Boolean.TRUE.equals(exists) ? "sms-state" : "sms-absent", Boolean.TRUE.equals(exists) ? 409 : 404);
         }
         var submission = claimed.getFirst();
+        DeclarantMessageText.requireSms(submission.body());
         jdbc.update("update app.declarant_message set recipient = ? where id = ? and send_attempt_id = ?",
                 submission.phone(), messageId, attemptId);
         return submission;

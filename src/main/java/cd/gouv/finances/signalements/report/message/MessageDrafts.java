@@ -24,14 +24,14 @@ public class MessageDrafts {
     public String pattern(String kind) {
         var fallback = DeclarantMessageText.pattern(kind);
         var stored = jdbc.query(
-                "select body from app.document_model where kind = ? and active = true order by recorded_at desc limit 1",
-                (row, number) -> row.getString(1),
+                "select body, actor_id from app.document_model where kind = ? and active = true order by recorded_at desc limit 1",
+                (row, number) -> DeclarantMessageText.effectivePattern(kind, row.getString(1), row.getObject(2) == null),
                 kind);
         return stored.isEmpty() || stored.get(0) == null ? fallback : stored.get(0);
     }
 
     public String body(String kind, String reference) {
-        return pattern(kind).formatted(reference.trim());
+        return DeclarantMessageText.render(pattern(kind), reference);
     }
 
     @Transactional

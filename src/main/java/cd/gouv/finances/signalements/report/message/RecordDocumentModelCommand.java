@@ -1,6 +1,5 @@
 package cd.gouv.finances.signalements.report.message;
 
-import cd.gouv.finances.signalements.report.ReportRejected;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.UUID;
@@ -14,10 +13,12 @@ public class RecordDocumentModelCommand {
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final ReadDocumentModelsQuery models;
 
-    public RecordDocumentModelCommand(JdbcTemplate jdbc, Clock clock) {
+    public RecordDocumentModelCommand(JdbcTemplate jdbc, Clock clock, ReadDocumentModelsQuery models) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.models = models;
     }
 
     @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
@@ -25,11 +26,8 @@ public class RecordDocumentModelCommand {
     public UUID execute(String kind, String body, UUID actorId) {
         var keptKind = kind == null ? "" : kind.trim();
         DeclarantMessageText.pattern(keptKind);
-        var kept = body == null ? "" : body.trim();
-        var markers = kept.split("%s", -1).length - 1;
-        if (kept.isEmpty() || kept.length() > 500 || markers != 1) {
-            throw new ReportRejected("model-body", 400);
-        }
+        var kept = DeclarantMessageText.validatePattern(body, models.referenceLength());
+        jdbc.queryForObject("select pg_advisory_xact_lock(1107, ?)", Object.class, keptKind.hashCode());
         var id = UUID.randomUUID();
         var now = Timestamp.from(clock.instant());
         jdbc.update("update app.document_model set active = false where kind = ? and active = true", keptKind);
@@ -37,6 +35,10 @@ public class RecordDocumentModelCommand {
                 insert into app.document_model (id, kind, body, active, actor_id, recorded_at)
                 values (?, ?, ?, true, ?, ?)
                 """, id, keptKind, kept, actorId, now);
+        jdbc.update("""
+                update app.declarant_message set body = replace(?, '%s', report_reference)
+                where kind = ? and status in ('prepared','failed')
+                """, kept, keptKind);
         return id;
     }
 }

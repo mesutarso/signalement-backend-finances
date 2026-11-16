@@ -26,6 +26,7 @@ PHOTO = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQV
 REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY', 'IDENTITY', 'NIF-ONLY', 'AUTO-DUP-1', 'AUTO-DUP-2']
 OCR_CALLS = []
 CHECKS = []
+SMS_CALLS = []
 
 
 class Source(BaseHTTPRequestHandler):
@@ -69,6 +70,10 @@ class Source(BaseHTTPRequestHandler):
         else:
             raw = self.rfile.read(int(self.headers.get('Content-Length', '0')))
         body = json.loads(raw)
+        if self.path == '/sms':
+            SMS_CALLS.append(body)
+            self.reply({'accepted': True})
+            return
         reference = base64.b64decode(body['image'])[len(PHOTO):].decode()
         OCR_CALLS.append(reference)
         if reference in ['UNREADABLE', 'MIXED-UNREADABLE']:
@@ -313,6 +318,48 @@ def run(cfg, sql):
         and int(sql(f"select generation from app.report_assessment where report_id='{replay_id}';")) == after
         and OCR_CALLS.count('REPLAY') == 2)
     review('UI', session=admin, vatStatus='unknown', vatEvidence=None)
+
+    models = call(admin, 'GET', '/api/document-models')
+    check('Humanized models expose a 100-character budget including a full reference',
+        models['smsLimit'] == 100 and models['referenceLength'] >= 36
+        and all(len(m['body'].replace('%s', 'x' * models['referenceLength'])) <= 100 for m in models['models'])
+        and any(m['body'].startswith('Votre signalement') for m in models['models']))
+    limit_model = dict(kind='situation', body='x' * 64 + '%s')
+    call(agent, 'POST', '/api/document-models', limit_model, 403)
+    call(auditor, 'POST', '/api/document-models', limit_model, 403)
+    call(admin, 'POST', '/api/document-models', limit_model)
+    call(admin, 'POST', '/api/document-models', dict(kind='situation',body='x' * 65 + '%s'), 400)
+    call(admin, 'POST', '/api/document-models', dict(kind='situation',body='Bonjour %s %s'), 400)
+    call(admin, 'POST', '/api/document-models', dict(kind='situation',body='Bonjour\n%s'), 400)
+    check('Unauthorized edits and models exceeding the final SMS limit are refused',
+        next(m for m in call(admin,'GET','/api/document-models')['models'] if m['kind']=='situation')['body'] == limit_model['body'])
+    sms_reference = str(uuid.uuid4())
+    sms_report = str(uuid.uuid4())
+    sql(f"insert into app.report(id,external_id,source,reference_code,reported_on,reported_at,title,description,reporter_phone,imported_at) values('{sms_report}','{sms_reference}','test','{sms_reference}',current_date,now(),'Notification de recette','Synthétique','243827243119',now());")
+    messages = call(admin, 'POST', '/api/declarant-messages', dict(reference=sms_reference,kind='situation'))
+    sms = next(m for m in messages['items'] if m['reportReference']==sms_reference)
+    check('Prepared SMS includes the complete reference and is exactly 100 characters', len(sms['body']) == 100 and sms['body'].endswith(sms_reference))
+    delivered = call(admin, 'POST', f"/api/declarant-messages/{sms['id']}/deliveries")
+    check('The local SMS stub receives exactly 100 characters', delivered['status']=='accepted' and len(SMS_CALLS)==1 and len(SMS_CALLS[0]['message'])==100)
+    call(admin, 'POST', f"/api/declarant-messages/{sms['id']}/deliveries", expected=409)
+    custom = 'Bonjour %s, merci pour votre signalement.'
+    call(admin, 'POST', '/api/document-models', dict(kind='situation',body=custom))
+    sent = next(m for m in call(admin,'GET','/api/declarant-messages')['items'] if m['id']==sms['id'])
+    check('Editing a model preserves a transmitted SMS and its delivery status', sent['body']==sms['body'] and sent['status']=='accepted' and len(SMS_CALLS)==1)
+    draft_messages = call(admin,'POST','/api/declarant-messages',dict(reference=sms_reference,kind='reexamination'))
+    draft = next(m for m in draft_messages['items'] if m['reportReference']==sms_reference and m['kind']=='reexamination')
+    updated = 'Votre demande %s a été traitée. Consultez votre espace.'
+    call(admin,'POST','/api/document-models',dict(kind='reexamination',body=updated))
+    refreshed = next(m for m in call(admin,'GET','/api/declarant-messages')['items'] if m['id']==draft['id'])
+    check('An administrator edit refreshes an unsent draft and remains editable', refreshed['body']==updated.replace('%s',sms_reference) and next(m for m in call(admin,'GET','/api/document-models')['models'] if m['kind']=='reexamination')['body']==updated)
+    sql(f"update app.declarant_message set body=repeat('x',101) where id='{draft['id']}';")
+    call(admin,'POST',f"/api/declarant-messages/{draft['id']}/deliveries",expected=400)
+    check('An old oversized draft is blocked before any SMS call and remains prepared', len(SMS_CALLS)==1 and sql(f"select status from app.declarant_message where id='{draft['id']}';")=='prepared')
+    call(admin,'POST','/api/document-models',dict(kind='reexamination',body=updated))
+    check('Notification edits keep one active model and retain prior versions',
+        sql("select count(*) from app.document_model where kind='reexamination' and active;")=='1'
+        and int(sql("select count(*) from app.document_model where kind='reexamination';")) >= 3)
+
     cfg.update(api=BASE, username='validation-admin', agentUsername='validation-agent', reportId=by_ref['UI']['id'])
 
 
@@ -343,6 +390,7 @@ def main():
         SPRING_SESSION_REDIS_NAMESPACE=database, SERVER_PORT=str(args.port), ACCESS_ADMIN_USERNAME='validation-admin', ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
         APP_FRONTEND_ORIGIN='http://localhost:3301', REPORTS_SCHEDULE_ENABLED='false', REPORTS_IMPORT_ON_STARTUP='false',
         REPORT_ANALYSIS_ENABLED='true', REPORT_ANALYSIS_REPLAY_BEFORE=cfg['replayBefore'], APP_VALIDATION_REPLAY_DELAY='500', FACNO_BASE_URL=f'http://127.0.0.1:{source.server_port}/facno', FACNO_API_KEY='synthetic',
+        UNIKRON_ENDPOINT=f'http://127.0.0.1:{source.server_port}/sms', UNIKRON_USER_NAME='synthetic', UNIKRON_APP_KEY='synthetic', UNIKRON_MODE='development',
         HERDYS_OCR_BASE_URL=f'http://127.0.0.1:{source.server_port}/ocr', HERDYS_OCR_API_TOKEN='synthetic')
     log_path = args.runtime.parent / 'backend.log'
     with log_path.open('w') as log:

@@ -33,7 +33,7 @@ public class UnikronSmsGateway {
     public SmsResult send(String phone, String message) {
         var digits = UnikronProperties.cleanPhone(phone);
         if (!properties.permitted(digits)) return SmsResult.unavailable("recipient-blocked");
-        if (message == null || message.isBlank() || message.length() > 160) return SmsResult.unavailable("invalid-message");
+        if (!SmsText.valid(message)) return SmsResult.unavailable("invalid-message");
         if (!properties.configured()) return SmsResult.unavailable("not-configured");
         if (!capacity.tryAcquire()) return SmsResult.unavailable("busy");
         try {

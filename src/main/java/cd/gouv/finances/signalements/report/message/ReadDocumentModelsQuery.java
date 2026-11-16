@@ -19,14 +19,22 @@ public class ReadDocumentModelsQuery {
     @Transactional(readOnly = true)
     public DocumentModelResponse execute() {
         var models = jdbc.query("""
-                select kind, body, recorded_at
+                select kind, body, recorded_at, actor_id
                 from app.document_model
                 where active = true and kind <> 'photo'
                 order by kind
                 """, (row, number) -> new DocumentModelResponse.Item(
                 row.getString(1),
-                row.getString(2),
+                DeclarantMessageText.effectivePattern(row.getString(1), row.getString(2), row.getObject(4) == null),
                 row.getTimestamp(3).toInstant()));
-        return new DocumentModelResponse(models);
+        return new DocumentModelResponse(models, DeclarantMessageText.SMS_LIMIT, referenceLength());
+    }
+
+    public int referenceLength() {
+        // Java and the editor count UTF-16 units consistently, including supplementary characters.
+        var lengths = jdbc.query("select reference_code from app.report union select report_reference from app.declarant_message",
+                (row, n) -> row.getString(1).length());
+        return Math.max(DeclarantMessageText.REFERENCE_RESERVE,
+                lengths.stream().mapToInt(Integer::intValue).max().orElse(DeclarantMessageText.REFERENCE_RESERVE));
     }
 }
