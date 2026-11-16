@@ -36,7 +36,7 @@ public final class ReportMapper {
                 includeReporter ? report.getReporterName() : null,
                 includeReporter ? report.getReporterEmail() : null,
                 includeReporter ? report.getReporterPhone() : null,
-                report.getValidationState());
+                report.getValidationState(), report.getScreeningReason());
     }
 
     public static ReportPageResponse toPage(Page<Report> page, boolean includeReporter, Map<UUID, String> assigneeNames) {
@@ -84,7 +84,7 @@ public final class ReportMapper {
                         entry.getResult(),
                         entry.getReason(),
                         AssigneeDirectory.name(names, entry.getActorId()),
-                        entry.getRecordedAt())).toList(), report.getValidationState());
+                        entry.getRecordedAt())).toList(), report.getValidationState(), report.getScreeningReason());
     }
 
     public static ImportResponse toImport(ReportImport run) {

@@ -54,13 +54,20 @@ public class ReadReportsQuery {
     private static Specification<Report> specification(ReportSearch search, boolean includeReporter) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         var agent = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> "ROLE_AGENT".equals(a.getAuthority()));
-        var validation = agent ? "doubt" : known(search.validation(), Set.of("queued", "analyzing", "doubt", "validated", "rejected", "legacy"));
+        var requested = agent && (search.validation() == null || search.validation().isBlank()) ? "doubt" : search.validation();
+        var selected = known(requested, Set.of("all", "queued", "analyzing", "doubt", "validated", "rejected", "legacy",
+                "rejected-unreadable", "rejected-identity-missing", "rejected-duplicate"));
+        if (agent && "legacy".equals(selected)) throw new ReportRejected("validation", 400);
+        var screening = selected != null && selected.startsWith("rejected-") ? selected.substring("rejected-".length()) : null;
+        var validation = screening != null ? "rejected" : "all".equals(selected) ? null : selected;
         var state = known(search.state(), STATES);
         var unsetPriority = "unset".equals(search.priority());
         var priority = unsetPriority ? null : known(search.priority(), PRIORITIES);
         return (root, query, builder) -> {
             var predicates = new ArrayList<Predicate>();
+            if (agent) predicates.add(builder.notEqual(root.get("validationState"), "legacy"));
             if (validation != null) predicates.add(builder.equal(root.get("validationState"), validation));
+            if (screening != null) predicates.add(builder.equal(root.get("screeningReason"), screening));
             if (search.query() != null && !search.query().isBlank()) {
                 var pattern = "%" + escape(search.query().trim().toLowerCase(Locale.ROOT)) + "%";
                 var matches = new ArrayList<Predicate>();

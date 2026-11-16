@@ -68,7 +68,7 @@ class ValidationMigrationTest {
         assertThat(current.leaseId()).isNotEqualTo(expired.leaseId());
         var evidence = mock(AssessmentEvidence.class);
         var decision = mock(AssessmentDecision.class);
-        var complete = new CompleteAnalysis(jdbc, new AssessmentStore(jdbc, new ObjectMapper(), mock(AssessmentEvaluation.class)), evidence, decision, beneficiaries);
+        var complete = new CompleteAnalysis(jdbc, new AssessmentStore(jdbc, new ObjectMapper(), mock(AssessmentEvaluation.class)), evidence, decision, beneficiaries, mock(cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates.class));
         tx.executeWithoutResult(status -> complete.execute(expired));
         tx.executeWithoutResult(status -> jobs.failed(expired, "stale-owner"));
         assertThat(jobs.renew(expired)).isFalse();

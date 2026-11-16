@@ -18,6 +18,7 @@ public class CompleteAnalysis {
     private final AssessmentEvidence evidence;
     private final AssessmentDecision decision;
     private final BeneficiaryRegistry beneficiaries;
+    private final cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates duplicates;
 
     @Transactional
     public void execute(AnalysisJobs.Job job) {
@@ -49,6 +50,8 @@ public class CompleteAnalysis {
                 fields.get("sellerName"), fields.get("sellerTaxId"), fields.get("documentNumber"), date(fields.get("documentDate")),
                 automaticVat, charged, automaticVat, charged, AUTO_VAT_EVIDENCE, job.reportId());
         // Reading an invoice does not establish its fiscal status, authenticity, or the actual purchase.
+        duplicates.execute(job.reportId());
+        duplicates.prepareUniqueness(job.reportId());
         decision.apply(job.reportId(), "automatic", null);
     }
 

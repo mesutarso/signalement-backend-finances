@@ -71,7 +71,7 @@ public class AnalysisJobs {
                 photosChanged, photosChanged, photosChanged, photosChanged, photosChanged, photosChanged, photosChanged,
                 photosChanged, photosChanged, photosChanged, photosChanged, photosChanged, photosChanged, reportId);
         if (changed > 0) {
-            jdbc.update("update app.report set validation_state = 'queued' where id = ?", reportId);
+            jdbc.update("update app.report set validation_state = 'queued', screening_reason = null where id = ?", reportId);
             jdbc.update("""
                     insert into app.qualification (id, report_id, decision, finding, proof, justification, missing_elements, actor_id, recorded_at)
                     select ?, ?, 'wait', 'verification', 'pending', 'Nouvelle analyse des pièces.', 'Nouvelle analyse des pièces.', ?, current_timestamp

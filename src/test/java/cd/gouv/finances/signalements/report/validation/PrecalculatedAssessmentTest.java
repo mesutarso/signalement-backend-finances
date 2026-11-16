@@ -63,7 +63,7 @@ class PrecalculatedAssessmentTest {
         assertThat(result.ifRegistered().state()).isEqualTo("rejected");
         assertThat(result.ifUnregistered().state()).isEqualTo("rejected");
         assertThat(result.onlyFiscalStatusMissing()).isFalse();
-        assertThat(ValidationRules.assess(facts, false, "UNREADABLE").reason()).contains("sans demande");
+        assertThat(ValidationRules.assess(facts, false, "UNREADABLE").reason()).isEqualTo("Photo illisible.");
         assertThat(ValidationRules.assess(facts, false, "UNKNOWN").state()).isEqualTo("doubt");
     }
 

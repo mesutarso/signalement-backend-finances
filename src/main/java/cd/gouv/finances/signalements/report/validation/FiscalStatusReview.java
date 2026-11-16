@@ -8,5 +8,5 @@ import jakarta.validation.constraints.Size;
 public record FiscalStatusReview(
         @PositiveOrZero long revision,
         @NotBlank @Pattern(regexp = "registered|unregistered") String vatStatus,
-        @NotBlank @Size(max = 500) String vatEvidence) {
+        @Size(max = 500) String vatEvidence) {
 }

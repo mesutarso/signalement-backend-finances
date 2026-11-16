@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /** The approved five-criterion policy. Unknown evidence never becomes a positive finding. */
 public final class ValidationRules {
-    public static final String VERSION = "criteria-readable-2026-11-15";
+    public static final String VERSION = "screening-2026-11-16";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     private ValidationRules() { }
@@ -19,14 +19,32 @@ public final class ValidationRules {
     }
 
     public static Decision assess(Facts facts, boolean alreadyRewarded, String readability) {
-        if ("UNREADABLE".equals(readability)) {
-            return new Decision("rejected", null, "La photo est illisible. Le signalement est rejeté sans demande d’une autre photo.");
-        }
+        var screened = screen(facts, readability);
+        if (screened != null) return screened;
         var decision = assess(facts);
         if ("validated".equals(decision.state()) && alreadyRewarded) {
             return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez la date et le doublon.");
         }
         return decision;
+    }
+
+    public static Decision screen(Facts facts, String readability) {
+        if ("UNREADABLE".equals(readability)) {
+            return new Decision("rejected", null, "Photo illisible.");
+        }
+        if ("duplicate".equals(facts.uniqueness())) {
+            return new Decision("rejected", null, "Facture déjà signalée.");
+        }
+        if (!facts.identityPresent() && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) {
+            return new Decision("rejected", null, "Nom et NIF de l’établissement absents.");
+        }
+        return null;
+    }
+
+    public static String screeningReason(Facts facts, String readability) {
+        if ("UNREADABLE".equals(readability)) return "unreadable";
+        if ("duplicate".equals(facts.uniqueness())) return "duplicate";
+        return screen(facts, readability) == null ? null : "identity-missing";
     }
 
     public static Decision assess(Facts facts) {

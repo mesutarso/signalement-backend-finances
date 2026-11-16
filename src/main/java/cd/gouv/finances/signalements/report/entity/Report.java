@@ -66,6 +66,9 @@ public class Report {
     @Column(name = "validation_state", insertable = false, updatable = false)
     private String validationState = "queued";
 
+    @Column(name = "screening_reason", length = 24)
+    private String screeningReason;
+
     @Column(length = 16)
     private String priority;
 

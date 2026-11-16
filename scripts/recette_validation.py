@@ -23,7 +23,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'http://127.0.0.1:18081'
 PHOTO = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
-REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY']
+REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY', 'IDENTITY', 'NIF-ONLY', 'AUTO-DUP-1', 'AUTO-DUP-2']
 OCR_CALLS = []
 CHECKS = []
 
@@ -53,7 +53,7 @@ class Source(BaseHTTPRequestHandler):
             self.reply(dict(problems=fixtures[(page-1)*size:page*size], hasNext=page*size < len(fixtures)))
         elif '/GetImage/' in parsed.path:
             reference = parsed.path.rsplit('/', 1)[1].removesuffix('-photo')
-            self.reply(PHOTO + reference.encode(), 'image/png')
+            self.reply(PHOTO + ('AUTO-DUP-1' if reference == 'AUTO-DUP-2' else reference).encode(), 'image/png')
         else: self.send_error(404)
     def do_POST(self):
         if self.headers.get('Transfer-Encoding', '').lower() == 'chunked':
@@ -76,7 +76,7 @@ class Source(BaseHTTPRequestHandler):
                 articles=[], confiance=0.99))
             return
         invoice = 'DUP' if reference.startswith('DUP-') else reference
-        self.reply(dict(vendeur='Établissement de recette ' + invoice, nif='NIF-' + invoice, date='2026-11-10',
+        self.reply(dict(vendeur=None if reference in ['IDENTITY','NIF-ONLY'] else 'Établissement de recette ' + invoice, nif=None if reference == 'IDENTITY' else 'NIF-' + invoice, date='2026-11-11' if reference == 'DUP-2' else '2026-11-10',
             montant='116000', numero='FACT-' + invoice, code='CODE-' + invoice, devise='CDF', montant_ht='100000',
             tva='0' if reference == 'REPLAY' and OCR_CALLS.count(reference) > 1 else '16000', taux_tva='16', montant_paye='116000', code_def=None, numero_def=None,
             articles=[dict(designation='Article synthétique', montant='100000')], confiance=0.99))
@@ -126,7 +126,7 @@ def run(cfg, sql):
     call(admin, 'POST', '/api/report-imports', dict(start='2026-11-01', end='2026-11-30'), 202)
     reports = until(lambda: (data if (data := call(admin, 'GET', '/api/reports?size=100'))['total'] == len(REFERENCES) else None))
     by_ref = {r['identifier']: r for r in reports['reports']}
-    until(lambda: all(r['validationState'] == ('rejected' if r['identifier'] == 'UNREADABLE' else 'doubt')
+    until(lambda: all(r['validationState'] == ('rejected' if r['identifier'] in ['UNREADABLE','IDENTITY','AUTO-DUP-2'] else 'doubt')
         for r in call(admin, 'GET', '/api/reports?size=100')['reports']))
     check('Automatic extraction completes without fiscal API access', len(OCR_CALLS) == len(REFERENCES) + 1)
     legacy_report, legacy_prime, legacy_actor = (str(uuid.uuid4()) for _ in range(3))
@@ -141,7 +141,8 @@ def run(cfg, sql):
     figures = call(admin,'GET','/api/indicators')['figures']
     check('Current indicators exclude historical tier rewards and point balances', 'points' not in figures and figures['rewards'] == 0)
     check('No reward exists before a proven validation', call(admin, 'GET', '/api/rewards')['total'] == 0)
-    check('Agent filters cannot reveal automatically closed or historical dossiers', all(r['validationState'] == 'doubt' for r in call(agent, 'GET', '/api/reports?validation=validated')['reports']))
+    check('Agent default queue remains focused on doubtful dossiers', all(r['validationState'] == 'doubt' for r in call(agent, 'GET', '/api/reports')['reports']))
+    check('Agent status filter exposes automatic rejections but excludes historical dossiers', len(call(agent, 'GET', '/api/reports?validation=rejected')['reports']) == 3 and all(r['validationState'] != 'legacy' for r in call(agent, 'GET', '/api/reports?validation=all&size=100')['reports']))
 
     def view(ref): return call(admin, 'GET', f"/api/reports/{by_ref[ref]['id']}/assessment")
     def body(ref, **changes):
@@ -165,12 +166,8 @@ def run(cfg, sql):
     check('Both fiscal outcomes are calculated before an agent enters VAT status',
         prepared['assessment']['state'] == 'doubt' and prepared['precalculation']['onlyFiscalStatusMissing']
         and prepared['precalculation']['ifRegistered']['state'] == prepared['precalculation']['ifUnregistered']['state'] == 'validated')
-    invalid = body('VALID-A', vatEvidence=None)
-    call(agent, 'POST', f'/api/reports/{a_id}/assessment', invalid, 400)
-    check('A fiscal claim without its evidence is refused', view('VALID-A')['reward'] is None)
     first_body = body('VALID-A')
-    fiscal_body = dict(revision=prepared['assessment']['revision'], vatStatus='registered', vatEvidence='Contrôle fiscal fictif sans API DGI-REP')
-    call(agent, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', dict(fiscal_body, vatEvidence=' '), 400)
+    fiscal_body = dict(revision=prepared['assessment']['revision'], vatStatus='registered')
     call(auditor, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body, 403)
     first = call(agent, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body)
     check('Fiscal-only submission preserves extracted data and all non-fiscal facts',
@@ -179,14 +176,15 @@ def run(cfg, sql):
             'uniqueness','uniquenessEvidence','extracted','readings']) and first['assessment']['checkedBy'] is not None)
     call(admin, 'POST', f'/api/reports/{a_id}/assessment/fiscal-status', fiscal_body, 409)
     check('Registered seller and non-normalized invoice earn exactly 5000 FC', first['assessment']['state'] == 'validated' and first['reward']['amount'] == 5000)
+    check('Temporary VAT status does not require a source from the agent', first['assessment']['vatSource'] == 'manual' and 'temporairement' in first['assessment']['vatEvidence'])
     photo_id = first['assessment']['photoId']
-    call(agent, 'GET', f'/api/reports/{a_id}', expected=403)
-    call(agent, 'GET', f'/api/reports/{a_id}/photos/{photo_id}', expected=403)
+    call(agent, 'GET', f'/api/reports/{a_id}')
+    check('Agent can consult a closed dossier attachment', agent.get(BASE + f'/api/reports/{a_id}/photos/{photo_id}', timeout=30).status_code == 200)
     call(agent, 'POST', f'/api/reports/{a_id}/assessment', first_body, 403)
     call(admin, 'POST', f'/api/reports/{a_id}/assessment', first_body, 409)
     for path in ['/api/indicators', '/api/seller-files', '/api/rewards']:
         call(agent, 'GET', path, expected=403)
-    check('Agent access is restricted on the server, including direct attachment links', a_id not in [r['id'] for r in call(agent, 'GET', '/api/reports')['reports']])
+    check('Agent cannot modify a closed dossier and the default queue stays actionable', a_id not in [r['id'] for r in call(agent, 'GET', '/api/reports')['reports']])
     call(admin, 'POST', f'/api/reports/{a_id}/qualifications', dict(decision='confirm', finding='non-normalized', proof='photo', justification='Ancienne grille'), 404)
     call(admin, 'POST', f'/api/reports/{a_id}/points', dict(reference='TEST'), 404)
     check('The retired grid and point credit cannot bypass the new workflow', True)
@@ -265,8 +263,14 @@ def run(cfg, sql):
     check('Unreadable photo is automatically rejected without fiscal status or replacement request',
         unreadable['assessment']['state'] == 'rejected' and unreadable['reward'] is None
         and unreadable['assessment']['vatStatus'] == 'unknown'
-        and unreadable['precalculation']['ifRegistered']['state'] == unreadable['precalculation']['ifUnregistered']['state'] == 'rejected'
+        and unreadable['precalculation'] is None
         and sql(f"select count(*) from app.photo_request where report_id='{unreadable_id}';") == '0')
+    check('Missing seller identity is rejected before fiscal precalculation', view('IDENTITY')['assessment']['state'] == 'rejected' and view('IDENTITY')['precalculation'] is None)
+    check('A NIF without a seller name is sufficient to keep the dossier under review', view('NIF-ONLY')['assessment']['state'] == 'doubt')
+    for criterion, reference in [('unreadable','UNREADABLE'),('identity-missing','IDENTITY'),('duplicate','AUTO-DUP-2')]:
+        filtered = call(agent, 'GET', '/api/reports?validation=rejected-' + criterion)
+        check('Status filter: ' + criterion, filtered['total'] >= 1 and by_ref[reference]['id'] in [r['id'] for r in filtered['reports']] and all(r['screeningReason'] == criterion and r['validationState'] == 'rejected' for r in filtered['reports']))
+    check('Identical attachments leave one actionable dossier and retain both originals', view('AUTO-DUP-1')['assessment']['state'] == 'doubt' and view('AUTO-DUP-2')['assessment']['state'] == 'rejected' and call(admin,'GET','/api/reports?size=100')['total'] == len(REFERENCES) + 1)
     call(admin, 'POST', f"/api/reports/{unreadable_id}/photos/{unreadable['assessment']['photoId']}/requests", dict(reason='Nouvelle photo'), 410)
     check('A legacy client cannot create a replacement photo request or a message',
         sql(f"select count(*) from app.declarant_message where report_id='{unreadable_id}';") == '0')

@@ -30,5 +30,6 @@ public record ReportResponse(
         List<PhotoRequestResponse> photoRequests,
         List<DuplicateAlertResponse> duplicates,
         List<SupervisionReviewResponse> reviews,
-        String validationState) {
+        String validationState,
+        String screeningReason) {
 }

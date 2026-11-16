@@ -18,12 +18,14 @@ public class AssessmentDecision {
 
     public void apply(UUID reportId, String origin, UUID actorId) {
         var assessment = store.read(reportId);
-        var decision = evaluation.calculate(assessment).decision();
+        var evaluated = evaluation.calculate(assessment);
+        var decision = evaluated.decision();
         var now = Timestamp.from(clock.instant());
         var nextRevision = assessment.revision() + 1;
         jdbc.update("update app.report_assessment set revision = ?, reason = ?, updated_at = ? where report_id = ?",
                 nextRevision, decision.reason(), now, reportId);
-        jdbc.update("update app.report set validation_state = ? where id = ?", decision.state(), reportId);
+        jdbc.update("update app.report set validation_state = ?, screening_reason = ? where id = ?",
+                decision.state(), evaluated.screeningReason(), reportId);
         var snapshot = store.read(reportId);
         jdbc.update("""
                 insert into app.assessment_event (id, report_id, revision, origin, actor_id, decision, reason, evidence, rule_version, recorded_at)

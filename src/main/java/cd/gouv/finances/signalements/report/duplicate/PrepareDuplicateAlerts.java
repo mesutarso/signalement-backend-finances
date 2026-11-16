@@ -47,6 +47,7 @@ public class PrepareDuplicateAlerts {
             }
         }
         refreshPriority(reportId);
+        duplicateAlertRepository.flush();
     }
 
     private void open(UUID reportId, DuplicateSignals.Match match, Set<String> seen) {

@@ -67,6 +67,15 @@ public class AssessmentEvidence {
         return requested != null ? requested : photos.size() == 1 ? photos.getFirst().id() : null;
     }
 
+    public boolean identityMissingAfterReading(UUID reportId) {
+        var photos = photos(reportId);
+        return !photos.isEmpty() && photos.stream().map(p -> latest(p.id())).allMatch(r -> r != null
+                && "READ".equals(r.status()) && ("READABLE".equals(r.quality()) || "PARTIAL".equals(r.quality()))
+                && blank(r.fields().get("sellerName")) && blank(r.fields().get("sellerTaxId")));
+    }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
+
     public String duplicateStatus(UUID reportId) {
         Boolean losing = jdbc.queryForObject("""
                 select exists (select 1 from app.duplicate_alert where (report_id = ? or other_report_id = ?)

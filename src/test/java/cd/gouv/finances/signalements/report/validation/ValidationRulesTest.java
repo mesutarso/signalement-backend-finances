@@ -53,4 +53,18 @@ class ValidationRulesTest {
     private static ValidationRules.Facts facts(String vat, String normalization, String purchase, String charged, String uniqueness) {
         return new ValidationRules.Facts(vat, normalization, purchase, charged, uniqueness, true, true, false);
     }
+
+    @Test
+    void screensMissingIdentityOnlyAfterASuccessfulReadingAndBeforeFiscalCriteria() {
+        var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", "unknown", true, false, false);
+        for (var quality : new String[] {"READABLE", "PARTIAL"}) {
+            assertThat(ValidationRules.assess(missing, false, quality).state()).isEqualTo("rejected");
+            assertThat(ValidationRules.screeningReason(missing, quality)).isEqualTo("identity-missing");
+        }
+        assertThat(ValidationRules.assess(missing, false, "UNKNOWN").state()).isEqualTo("doubt");
+        assertThat(ValidationRules.screeningReason(missing, "UNKNOWN")).isNull();
+        assertThat(ValidationRules.screeningReason(missing, "UNREADABLE")).isEqualTo("unreadable");
+        var duplicate = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", "duplicate", true, true, false);
+        assertThat(ValidationRules.screeningReason(duplicate, "READABLE")).isEqualTo("duplicate");
+    }
 }

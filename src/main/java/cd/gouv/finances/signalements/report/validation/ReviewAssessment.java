@@ -31,12 +31,12 @@ public class ReviewAssessment {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
-        require(review.vatStatus(), Set.of("registered", "unregistered"), review.vatEvidence());
+        require(review.vatStatus(), Set.of("registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
         var now = Timestamp.from(clock.instant());
         jdbc.update("""
                 update app.report_assessment set vat_status = ?, vat_evidence = ?, vat_source = 'manual',
                     checked_by = ?, checked_at = ?, updated_at = ? where report_id = ?
-                """, review.vatStatus(), clean(review.vatEvidence()), actorId, now, now, reportId);
+                """, review.vatStatus(), fiscalEvidence(review.vatStatus(), review.vatEvidence()), actorId, now, now, reportId);
         decision.apply(reportId, "manual", actorId);
     }
 
@@ -46,7 +46,7 @@ public class ReviewAssessment {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
-        require(review.vatStatus(), Set.of("unknown", "registered", "unregistered"), review.vatEvidence());
+        require(review.vatStatus(), Set.of("unknown", "registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
         require(review.normalization(), Set.of("unknown", "normalized", "non-normalized"), review.normalizationEvidence());
         require(review.purchaseConformity(), Set.of("unknown", "conform", "nonconform"), review.purchaseEvidence());
         require(review.vatCharged(), Set.of("unknown", "yes", "no"), review.vatChargeEvidence());
@@ -66,7 +66,7 @@ public class ReviewAssessment {
                     extracted = ?::jsonb, updated_at = ? where report_id = ?
                 """, photoId, clean(review.sellerName()), clean(review.sellerTaxId()), clean(review.documentNumber()),
                 documentDate,
-                review.vatStatus(), clean(review.vatEvidence()), "unknown".equals(review.vatStatus()) ? null : "manual",
+                review.vatStatus(), fiscalEvidence(review.vatStatus(), review.vatEvidence()), "unknown".equals(review.vatStatus()) ? null : "manual",
                 "unknown".equals(review.vatStatus()) ? null : actorId, "unknown".equals(review.vatStatus()) ? null : now,
                 review.normalization(), clean(review.normalizationEvidence()), review.purchaseConformity(), clean(review.purchaseEvidence()),
                 review.vatCharged(), clean(review.vatChargeEvidence()), review.uniqueness(), clean(review.uniquenessEvidence()),
@@ -85,4 +85,9 @@ public class ReviewAssessment {
     }
 
     private static String clean(String text) { return text == null || text.isBlank() ? null : text.trim(); }
+
+    private static String fiscalEvidence(String status, String proof) {
+        if ("unknown".equals(status)) return null;
+        return clean(proof) == null ? "Assujettissement renseigné temporairement par l’agent." : clean(proof);
+    }
 }
