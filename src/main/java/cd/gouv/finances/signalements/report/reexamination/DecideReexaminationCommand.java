@@ -18,7 +18,7 @@ public class DecideReexaminationCommand {
     private final Clock clock;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reexam.decide')")
     @Transactional
     public UUID execute(UUID id, String result, String comment, UUID actorId) {
         var kept = "maintained".equals(result) ? Reexamination.MAINTAINED : "modified".equals(result) ? Reexamination.MODIFIED : "";

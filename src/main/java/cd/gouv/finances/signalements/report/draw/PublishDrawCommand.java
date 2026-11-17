@@ -17,7 +17,7 @@ public class PublishDrawCommand {
     private final CampaignDrawRepository campaignDrawRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('draw.manage')")
     @Transactional
     public void execute(UUID id, UUID actorId) {
         var draw = campaignDrawRepository.findById(id).orElseThrow(() -> new ReportRejected("draw-absent", 404));

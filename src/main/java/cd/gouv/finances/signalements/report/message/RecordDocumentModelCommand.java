@@ -21,7 +21,7 @@ public class RecordDocumentModelCommand {
         this.models = models;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('template.write')")
     @Transactional
     public UUID execute(String kind, String body, UUID actorId) {
         var keptKind = kind == null ? "" : kind.trim();

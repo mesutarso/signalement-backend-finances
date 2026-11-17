@@ -15,12 +15,12 @@ public class TransferPayments {
     private final PaymentTransfers transfers;
     private final ArakaGateway gateway;
 
-    @PreAuthorize("hasRole('PAYMASTER')")
+    @PreAuthorize("hasAuthority('payment.execute')")
     public PaymentTransfers.Transfer send(UUID statement, UUID line, String operator, UUID request, UUID actor) {
         return submit(transfers.reserveLine(statement, line, operator, request, actor));
     }
 
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('payment.test')")
     public PaymentTransfers.Transfer test(String phone, String operator, UUID request, UUID actor) {
         return submit(transfers.reserveTest(phone, operator, request, actor));
     }
@@ -32,7 +32,7 @@ public class TransferPayments {
         return transfers.submitted(t.id(), gateway.send(t.reference(), t.amount(), t.wallet(), t.provider()));
     }
 
-    @PreAuthorize("hasAnyRole('PAYMASTER','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('payment.check')")
     public PaymentTransfers.Transfer check(UUID id) { return reconcile(id); }
 
     private PaymentTransfers.Transfer reconcile(UUID id) {

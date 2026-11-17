@@ -18,7 +18,7 @@ public class KeepTaxpayersCommand {
     private final TaxpayerRepository taxpayerRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('taxpayer.verify')")
     @Transactional
     public int execute() {
         var rows = jdbc.query("""

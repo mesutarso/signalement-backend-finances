@@ -31,19 +31,19 @@ public class DecidePaymentStatementCommand {
     private final Clock clock;
     private final cd.gouv.finances.signalements.report.validation.RewardPaymentGuard rewardPaymentGuard;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('payment.control')")
     @Transactional
     public String control(UUID statementId, String result, String reason, UUID actorId) {
         return decide(statementId, CONTROL, result, reason, actorId);
     }
 
-    @PreAuthorize("hasRole('CELLULE')")
+    @PreAuthorize("hasAuthority('payment.visa')")
     @Transactional
     public String visa(UUID statementId, String result, String reason, UUID actorId) {
         return decide(statementId, VISA, result, reason, actorId);
     }
 
-    @PreAuthorize("hasRole('CABINET')")
+    @PreAuthorize("hasAuthority('payment.authorize')")
     @Transactional
     public String authorize(UUID statementId, String result, String reason, UUID actorId) {
         return decide(statementId, AUTHORIZE, result, reason, actorId);

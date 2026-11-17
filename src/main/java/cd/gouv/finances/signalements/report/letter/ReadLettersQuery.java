@@ -19,7 +19,7 @@ public class ReadLettersQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public LetterPageResponse execute(String status, int page) {
         var waiting = "waiting".equals(status);

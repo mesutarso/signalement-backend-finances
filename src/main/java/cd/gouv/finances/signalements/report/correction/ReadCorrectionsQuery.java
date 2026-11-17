@@ -18,7 +18,7 @@ public class ReadCorrectionsQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('correction.read')")
     @Transactional(readOnly = true)
     public CorrectionPageResponse execute(int page) {
         var requested = Math.max(page, 0);

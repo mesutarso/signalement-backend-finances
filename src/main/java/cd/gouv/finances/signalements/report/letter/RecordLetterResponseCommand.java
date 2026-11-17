@@ -26,7 +26,7 @@ public class RecordLetterResponseCommand {
     private final LetterResponseRepository letterResponseRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.response')")
     @Transactional
     public boolean execute(UUID letterId, String receivedOn, String service, String reference, String conclusion, byte[] content, UUID actorId) {
         var letter = letterRepository.findById(letterId).orElseThrow(() -> new ReportRejected("letter-absent", 404));

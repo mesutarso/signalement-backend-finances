@@ -15,7 +15,7 @@ public class ReadLetterResponseFileQuery {
 
     private final LetterResponseRepository letterResponseRepository;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public PhotoFile execute(UUID letterId, UUID responseId) {
         var response = letterResponseRepository.findByIdAndLetterId(responseId, letterId)

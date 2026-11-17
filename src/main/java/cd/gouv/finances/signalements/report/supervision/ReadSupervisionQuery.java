@@ -24,7 +24,7 @@ public class ReadSupervisionQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('supervision.read')")
     @Transactional(readOnly = true)
     public SupervisionPageResponse execute(String status, int page) {
         var filter = FILTERS.contains(status) ? status : "open";

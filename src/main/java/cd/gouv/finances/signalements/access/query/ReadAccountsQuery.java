@@ -20,18 +20,18 @@ public class ReadAccountsQuery {
 
     private final UserAccountRepository userAccountRepository;
 
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('user.read')")
     @Transactional(readOnly = true)
     public AccountPageResponse execute(int page, int size) {
         return execute(page, size, "", null, null);
     }
 
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('user.read')")
     @Transactional(readOnly = true)
     public AccountPageResponse execute(int page, int size, String search, Role role, Boolean enabled) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
-        Specification<UserAccount> filters = (root, query, cb) -> cb.conjunction();
+        Specification<UserAccount> filters = (root, query, cb) -> cb.isNull(root.get("deletedAt"));
         if (search != null && !search.isBlank()) {
             String term = search.trim().toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_");
             filters = filters.and((root, query, cb) -> cb.like(cb.lower(root.get("username")), "%" + term + "%", '!'));

@@ -15,7 +15,7 @@ public class ReadDocumentModelsQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('template.read')")
     @Transactional(readOnly = true)
     public DocumentModelResponse execute() {
         var models = jdbc.query("""

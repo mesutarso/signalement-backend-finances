@@ -20,7 +20,7 @@ public class RecordPrizeHandoverCommand {
         this.clock = clock;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('draw.manage')")
     @Transactional
     public void execute(UUID prizeId, String note, UUID actorId) {
         var kept = note == null ? "" : note.trim();

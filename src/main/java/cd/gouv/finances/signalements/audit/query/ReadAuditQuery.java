@@ -25,7 +25,7 @@ public class ReadAuditQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('audit.read')")
     @Transactional(readOnly = true)
     public AuditPageResponse execute(String objectType, String objectId, LocalDate from, LocalDate to, int page) {
         var start = (from == null ? LocalDate.now(KINSHASA).minusDays(30) : from).atStartOfDay(KINSHASA).toInstant();

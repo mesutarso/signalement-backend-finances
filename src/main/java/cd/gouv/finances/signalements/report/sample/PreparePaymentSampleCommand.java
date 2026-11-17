@@ -30,7 +30,7 @@ public class PreparePaymentSampleCommand {
     public record Paid(UUID attemptId, String reference, String operator, int amount) {
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('sample.review')")
     @Transactional
     public UUID execute(LocalDate periodStart, LocalDate periodEnd, UUID actorId) {
         if (periodStart == null || periodEnd == null || periodEnd.isBefore(periodStart)) {

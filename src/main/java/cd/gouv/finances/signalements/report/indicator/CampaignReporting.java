@@ -25,7 +25,7 @@ public class CampaignReporting {
     public record Budget(Long amount, long approvedAmount, long paidAmount) { }
     public record Report(UUID id, String kind, LocalDate from, LocalDate to, IndicatorResponse.Figures figures, Long budget, Instant generatedAt) { }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('setting.read')")
     @Transactional(readOnly = true)
     public Budget budget() {
         var amounts = jdbc.queryForList("select amount from app.campaign_budget order by recorded_at desc, id desc limit 1", Long.class);
@@ -38,7 +38,7 @@ public class CampaignReporting {
         return new Budget(amounts.isEmpty() ? null : amounts.getFirst(), approved == null ? 0 : approved, paid == null ? 0 : paid);
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('setting.write')")
     @Transactional
     public void recordBudget(long amount, String reference, UUID actor) {
         var kept = reference == null ? "" : reference.trim();
@@ -49,7 +49,7 @@ public class CampaignReporting {
         audit.allowed(actor, "campaign-budget", "budget", id.toString());
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reporting.write')")
     @Transactional
     public void capture(String kind, UUID actor) {
         if (!Set.of("weekly", "monthly").contains(kind)) throw new ReportRejected("campaign-report", 400);
@@ -66,7 +66,7 @@ public class CampaignReporting {
         if (created > 0) audit.allowed(actor, "campaign-report", "report", id.toString());
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('indicator.read')")
     @Transactional(readOnly = true)
     public List<Report> reports() {
         return jdbc.query("select id, kind, period_start, period_end, figures::text, budget, generated_at from app.campaign_report order by generated_at desc limit 20",

@@ -20,6 +20,7 @@ public class AccountDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) {
         var account = userAccountRepository
                 .findByUsername(normalize(username))
+                .filter(a -> a.getDeletedAt() == null)
                 .orElseThrow(() -> new UsernameNotFoundException("rejected-credentials"));
         Instant now = clock.instant();
         boolean locked = account.getLockedUntil() != null && account.getLockedUntil().isAfter(now);

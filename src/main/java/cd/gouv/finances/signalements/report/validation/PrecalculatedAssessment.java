@@ -32,13 +32,13 @@ public record PrecalculatedAssessment(
                                         : "READABLE".equals(readability) ? "Les éléments essentiels de la facture ont été extraits."
                                         : "PARTIAL".equals(readability) ? "La lecture est partielle ; elle ne suffit pas à déclarer la photo illisible."
                                         : "La lisibilité n’est pas encore établie. Une panne OCR n’est pas une photo illisible."),
-                        normalization(assessment), purchase(assessment), vat(assessment), uniqueness(assessment, facts)),
+                        normalization(assessment), vat(assessment), uniqueness(assessment, facts)),
                 registered, unregistered);
     }
 
     private static ValidationRules.Decision forecast(ValidationRules.Facts facts, String vatStatus, boolean alreadyRewarded, String readability) {
         return ValidationRules.assess(new ValidationRules.Facts(vatStatus, facts.normalization(), facts.purchaseConformity(),
-                facts.vatCharged(), facts.uniqueness(), facts.documentPresent(), facts.identityPresent(),
+                facts.vatCharged(), facts.uniqueness(), facts.documentPresent(), facts.taxIdPresent(),
                 facts.unresolvedDuplicates()), alreadyRewarded, readability);
     }
 
@@ -50,14 +50,6 @@ public record PrecalculatedAssessment(
         return new Criterion("normalization", "Normalisation de la facture", "unknown", "ocr",
                 def ? "Références DEF repérées par OCR. Elles ne suffisent pas à confirmer la normalisation."
                         : "Aucune référence DEF extraite. Une absence dans l’OCR ne prouve pas une facture non normalisée.");
-    }
-
-    private static Criterion purchase(AssessmentStore.Snapshot a) {
-        return new Criterion("purchaseConformity", "Conformité à l’achat réel", a.purchaseConformity(),
-                "unknown".equals(a.purchaseConformity()) ? "none" : "review",
-                "unknown".equals(a.purchaseConformity())
-                        ? "Les éléments OCR sont préparés ; un justificatif de l’achat réel est nécessaire pour les comparer."
-                        : a.purchaseEvidence());
     }
 
     private static Criterion vat(AssessmentStore.Snapshot a) {

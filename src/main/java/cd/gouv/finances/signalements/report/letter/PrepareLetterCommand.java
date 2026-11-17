@@ -31,7 +31,7 @@ public class PrepareLetterCommand {
     public record Prepared(UUID id, boolean created) {
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.prepare')")
     @Transactional
     public Prepared execute(UUID actorId) {
         var start = LocalDate.now(clock.withZone(KINSHASA)).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));

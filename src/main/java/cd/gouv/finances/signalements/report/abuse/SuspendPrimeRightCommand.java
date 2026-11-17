@@ -25,7 +25,7 @@ public class SuspendPrimeRightCommand {
         this.clock = clock;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('abuse.write')")
     @Transactional
     public String execute(String reference, String action, String reason, UUID actorId) {
         var decision = action == null ? "" : action.trim();

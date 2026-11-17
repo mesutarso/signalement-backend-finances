@@ -21,7 +21,7 @@ public class LinkPhotoRequestCommand {
     private final ReportRepository reportRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     @Transactional
     public PhotoRequestResponse execute(UUID reportId, UUID requestId, String referenceCode) {
         var request = photoRequestRepository.findById(requestId)

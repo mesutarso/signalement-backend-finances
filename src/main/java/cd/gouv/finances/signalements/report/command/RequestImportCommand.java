@@ -14,11 +14,11 @@ public class RequestImportCommand {
 
     private final ImportDispatcher dispatcher;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('import.run')")
     public ImportResponse execute(LocalDate start, LocalDate end) {
         return dispatcher.submit(start, end, "manual");
     }
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('import.run')")
     public ImportResponse retry(UUID id) {
         return dispatcher.retry(id);
     }

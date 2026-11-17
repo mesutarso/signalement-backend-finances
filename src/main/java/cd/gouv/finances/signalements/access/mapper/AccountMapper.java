@@ -11,7 +11,8 @@ public final class AccountMapper {
 
     public static AccountResponse toResponse(UserAccount account) {
         return new AccountResponse(
-                account.getId(), account.getUsername(), account.getRole().name(), account.isEnabled());
+                account.getId(), account.getUsername(), account.getRole().name(), account.isEnabled(),
+                cd.gouv.finances.signalements.access.Permission.forRole(account.getRole()), account.getLockedUntil(), account.getCreatedAt());
     }
 
     public static AccountResponse toResponse(AccountUserDetails details) {

@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.report.controller;
 
+import cd.gouv.finances.signalements.access.Role;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,7 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.test.context.support.WithMockUser;
+import cd.gouv.finances.signalements.access.security.WithRole;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -98,7 +99,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void refusesAnImportByAnAuditor() throws Exception {
         mockMvc.perform(post("/api/report-imports")
                         .with(csrf())
@@ -108,7 +109,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void refusesAPhotoRequestByAnAuditor() throws Exception {
         mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/photos/" + java.util.UUID.randomUUID() + "/requests")
                         .with(csrf())
@@ -118,7 +119,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void refusesAQualificationByAnAuditor() throws Exception {
         mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/qualifications")
                         .with(csrf())
@@ -128,7 +129,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AGENT")
+    @WithRole(Role.AGENT)
     void aReadingReusesTheCacheUnlessRefreshIsExplicit() throws Exception {
         var reportId = java.util.UUID.randomUUID();
         var photoId = java.util.UUID.randomUUID();
@@ -141,7 +142,7 @@ class ReportControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void anAuditorCannotTriggerAnOcrCall() throws Exception {
         mockMvc.perform(post("/api/reports/" + java.util.UUID.randomUUID() + "/photos/" + java.util.UUID.randomUUID() + "/readings")
                         .param("refresh", "true").with(csrf()))

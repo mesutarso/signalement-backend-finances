@@ -32,7 +32,7 @@ public class OrganizeDrawCommand {
     private final DrawTicketRepository drawTicketRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('draw.manage')")
     @Transactional
     public UUID execute(String kind, LocalDate month, String witness, int campaign, int intermediate, int motorcycles, int cars, UUID actorId) {
         jdbc.queryForObject("select pg_advisory_xact_lock(783962143)", Object.class);

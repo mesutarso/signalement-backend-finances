@@ -73,7 +73,7 @@ public class ReportController {
         return readReportsQuery.execute(
                 page,
                 size,
-                account != null && account.getRole() != Role.AUDITOR,
+                account != null && account.hasPermission("report.identity"),
                 new ReadReportsQuery.ReportSearch(q, state, priority, assigneeId, unassigned, validation));
     }
 
@@ -92,14 +92,14 @@ public class ReportController {
         assignReportCommand.execute(id, request.version(), request.assigneeId(), request.priority(), account.getAccountId());
         recordAudit.allowed(account.getAccountId(), "assignment", "report", id.toString());
         prepareDuplicateAlerts.execute(id);
-        return readReportQuery.execute(id, account.getRole() != Role.AUDITOR);
+        return readReportQuery.execute(id, account.hasPermission("report.identity"));
     }
 
     @GetMapping("/api/reports/{id}")
     @Operation(summary = "Returns one report and its photos")
     public ReportResponse one(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails account) {
         prepareDuplicateAlerts.execute(id);
-        return readReportQuery.execute(id, account.getRole() != Role.AUDITOR);
+        return readReportQuery.execute(id, account.hasPermission("report.identity"));
     }
 
     @PostMapping("/api/reports/{id}/duplicates/{alertId}")
@@ -112,7 +112,7 @@ public class ReportController {
         decideDuplicateCommand.execute(id, alertId, body.decision(), body.reason(), account.getAccountId());
         recordAudit.allowed(account.getAccountId(), "duplicate", "report", id.toString());
         prepareDuplicateAlerts.execute(id);
-        return readReportQuery.execute(id, account.getRole() != Role.AUDITOR);
+        return readReportQuery.execute(id, account.hasPermission("report.identity"));
     }
 
     @PostMapping("/api/reports/{id}/photos/{photoId}/readings")

@@ -18,7 +18,7 @@ public class ReadTaxpayersQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('taxpayer.read')")
     @Transactional(readOnly = true)
     public TaxpayerPageResponse execute(int page) {
         var requested = Math.max(page, 0);

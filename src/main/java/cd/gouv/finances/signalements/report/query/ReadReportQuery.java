@@ -40,7 +40,7 @@ public class ReadReportQuery {
     private final DuplicateLookup duplicateLookup;
     private final SupervisionReviewRepository supervisionReviewRepository;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.read')")
     @Transactional(readOnly = true)
     public ReportResponse execute(UUID id, boolean includeReporter) {
         var report = reportRepository.findById(id).orElseThrow(() -> new ReportRejected("report-absent", 404));

@@ -30,7 +30,7 @@ public class ReviewPrimeCommand {
     public record Outcome(String action, UUID payoutId) {
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.approve')")
     @Transactional
     public Outcome execute(UUID primeId, String result, String reason, UUID actorId) {
         var decision = result == null ? "" : result.trim();

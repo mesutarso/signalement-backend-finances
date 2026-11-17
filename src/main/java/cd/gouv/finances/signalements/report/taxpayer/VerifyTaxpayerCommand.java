@@ -17,7 +17,7 @@ public class VerifyTaxpayerCommand {
     private final TaxpayerVerification taxpayerVerification;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('taxpayer.verify')")
     @Transactional
     public void execute(UUID id) {
         var taxpayer = taxpayerRepository.findById(id).orElseThrow(() -> new ReportRejected("taxpayer-absent", 404));

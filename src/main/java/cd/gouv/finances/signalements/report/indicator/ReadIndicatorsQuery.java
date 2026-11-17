@@ -29,7 +29,7 @@ public class ReadIndicatorsQuery {
         this.clock = clock;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('indicator.read')")
     @Transactional(readOnly = true)
     public IndicatorResponse execute(LocalDate from, LocalDate to, String finding) {
         if ((from == null) != (to == null) || (from != null && to.isBefore(from))) {

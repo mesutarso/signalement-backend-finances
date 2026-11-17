@@ -16,7 +16,7 @@ public class SmsTestController {
     private final UnikronProperties properties;
 
     @PostMapping("/api/sms/tests")
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('sms.test')")
     public SmsResult test(@Valid @RequestBody(required = false) TestRequest request) {
         if (properties.mode() != UnikronProperties.Mode.DEVELOPMENT) throw new ReportRejected("sms-test-disabled", 409);
         var phone = request == null || request.phone() == null ? UnikronProperties.TEST_PHONE : request.phone();

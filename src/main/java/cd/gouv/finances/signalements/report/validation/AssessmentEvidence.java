@@ -64,14 +64,20 @@ public class AssessmentEvidence {
         if (requested != null && photos.stream().noneMatch(p -> p.id().equals(requested))) {
             throw new ReportRejected("assessment-photo", 400);
         }
-        return requested != null ? requested : photos.size() == 1 ? photos.getFirst().id() : null;
+        if (requested != null) return requested;
+        if (photos.size() == 1) return photos.getFirst().id();
+        // Choose the first successfully read invoice with a NIF, without asking the agent to select a piece.
+        return photos.stream().map(photo -> latest(photo.id()))
+                .filter(reading -> reading != null && "READ".equals(reading.status())
+                        && !blank(reading.fields().get("sellerTaxId")))
+                .map(Reading::photoId).findFirst().orElse(null);
     }
 
-    public boolean identityMissingAfterReading(UUID reportId) {
-        var photos = photos(reportId);
-        return !photos.isEmpty() && photos.stream().map(p -> latest(p.id())).allMatch(r -> r != null
+    public boolean taxIdMissingAfterReading(UUID reportId, UUID selectedPhotoId) {
+        var ids = selectedPhotoId == null ? photos(reportId).stream().map(Photo::id).toList() : List.of(selectedPhotoId);
+        return !ids.isEmpty() && ids.stream().map(this::latest).allMatch(r -> r != null
                 && "READ".equals(r.status()) && ("READABLE".equals(r.quality()) || "PARTIAL".equals(r.quality()))
-                && blank(r.fields().get("sellerName")) && blank(r.fields().get("sellerTaxId")));
+                && blank(r.fields().get("sellerTaxId")));
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }

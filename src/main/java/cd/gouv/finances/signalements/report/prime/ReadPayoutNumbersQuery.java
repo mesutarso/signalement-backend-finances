@@ -19,7 +19,7 @@ public class ReadPayoutNumbersQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.read')")
     @Transactional(readOnly = true)
     public PayoutPageResponse execute(int page) {
         var requested = Math.max(page, 0);

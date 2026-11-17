@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class ReadDeclarantSituationQuery {
 
-    private static final String READERS = "hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')";
+    private static final String READERS = "hasAuthority('declarant.read')";
 
     private final JdbcTemplate jdbc;
     private final ReportReference reportReference;

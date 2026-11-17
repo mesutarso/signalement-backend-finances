@@ -30,6 +30,7 @@ class ScreeningMigrationTest {
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(url,user,password));
         Flyway.configure().dataSource(url,user,password).target("46").load().migrate();
         var missing = report(jdbc,"MISSING",null,null,"READABLE","missing");
+        var nameOnly = report(jdbc,"NAME-ONLY","Vendeur",null,"READABLE","name-only");
         var nifOnly = report(jdbc,"NIF-ONLY",null,"TEST-NIF","READABLE","nif");
         var failed = report(jdbc,"FAILED",null,null,null,"failed");
         var unreadable = report(jdbc,"UNREADABLE",null,null,"UNREADABLE","unreadable");
@@ -45,9 +46,10 @@ class ScreeningMigrationTest {
         var evaluation=new AssessmentEvaluation(new AssessmentEvidence(jdbc),rewards);
         var store=new AssessmentStore(jdbc,new ObjectMapper(),evaluation);
         var decision=new AssessmentDecision(jdbc,store,evaluation,rewards,Clock.systemUTC());
-        for(var id:java.util.List.of(missing,nifOnly,failed,unreadable)) decision.apply(id,"automatic",null);
+        for(var id:java.util.List.of(missing,nameOnly,nifOnly,failed,unreadable)) decision.apply(id,"automatic",null);
         assertThat(reason(jdbc,missing)).isEqualTo("identity-missing");
         assertThat(store.view(missing).precalculation()).isNull();
+        assertThat(reason(jdbc,nameOnly)).isEqualTo("identity-missing");
         assertThat(store.read(nifOnly).state()).isEqualTo("doubt");
         assertThat(reason(jdbc,nifOnly)).isNull();
         assertThat(store.read(failed).state()).isEqualTo("doubt");
@@ -63,7 +65,7 @@ class ScreeningMigrationTest {
         assertThat(reason(jdbc,second)).isEqualTo("duplicate");
         assertThat(reason(jdbc,third)).isEqualTo("duplicate");
         assertThat(jdbc.queryForObject("select count(*) from app.report where id in (?,?,?) and validation_state <> 'rejected'",Integer.class,first,second,third)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from app.report_photo",Integer.class)).isEqualTo(7);
+        assertThat(jdbc.queryForObject("select count(*) from app.report_photo",Integer.class)).isEqualTo(8);
         var eventCount=jdbc.queryForObject("select count(*) from app.assessment_event",Integer.class);
         duplicates.execute(third);
         assertThat(jdbc.queryForObject("select count(*) from app.assessment_event",Integer.class)).isEqualTo(eventCount);
@@ -71,6 +73,7 @@ class ScreeningMigrationTest {
         // One shared attachment in a larger set does not prove the reports are duplicates.
         var multiple=report(jdbc,"MULTIPLE","Vendeur","TEST-NIF","READABLE","shared");
         photo(jdbc,multiple,"extra",null);
+        assertThat(new AssessmentEvidence(jdbc).selected(multiple,null)).isEqualTo(store.read(multiple).photoId());
         duplicates.execute(multiple);
         decision.apply(multiple,"automatic",null);
         assertThat(reason(jdbc,multiple)).isNull();
@@ -96,10 +99,28 @@ class ScreeningMigrationTest {
         assertThat(jdbc.queryForObject("select count(*) from app.assessment_event where report_id=? and rule_version=?",Integer.class,missing,ValidationRules.VERSION)).isEqualTo(1);
 
         var review=new ReviewAssessment(jdbc,store,new AssessmentEvidence(jdbc),decision,
-                mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class),Clock.systemUTC());
+                mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class),Clock.systemUTC(),duplicates);
         review.fiscalStatus(nifOnly,new FiscalStatusReview(store.read(nifOnly).revision(),"unregistered",null),UUID.randomUUID());
         assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unregistered");
         assertThat(store.read(nifOnly).vatEvidence()).contains("temporairement");
+
+        jdbc.update("update app.report_assessment set vat_charged='yes',vat_charge_evidence='TVA extraite automatiquement' where report_id=?",nifOnly);
+        var before=store.read(nifOnly);
+        review.execute(nifOnly,new AssessmentReview(before.revision(),"Vendeur corrigé","TEST-NIF","FACTURE-CORRIGÉE","2026-11-10","non-normalized"),UUID.randomUUID());
+        var corrected=store.read(nifOnly);
+        assertThat(corrected.photoId()).isEqualTo(before.photoId());
+        assertThat(corrected.vatStatus()).isEqualTo(before.vatStatus());
+        assertThat(corrected.vatEvidence()).isEqualTo(before.vatEvidence());
+        assertThat(corrected.vatCharged()).isEqualTo("yes");
+        assertThat(corrected.vatChargeEvidence()).isEqualTo("TVA extraite automatiquement");
+        assertThat(corrected.uniqueness()).isEqualTo("unique");
+        assertThat(corrected.extracted()).isEqualTo(before.extracted());
+        assertThat(corrected.state()).isEqualTo("validated");
+        review.execute(nifOnly,new AssessmentReview(corrected.revision(),"Vendeur corrigé","NIF-CORRIGÉ","FACTURE-CORRIGÉE","2026-11-10","non-normalized"),UUID.randomUUID());
+        assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unknown");
+        assertThat(store.read(nifOnly).state()).isEqualTo("doubt");
+        assertThatThrownBy(() -> review.execute(nameOnly,new AssessmentReview(store.read(nameOnly).revision(),"Vendeur","NIF-AJOUTÉ","FACTURE","2026-11-10","non-normalized"),UUID.randomUUID()))
+                .isInstanceOf(cd.gouv.finances.signalements.report.ReportRejected.class);
     }
 
     private static String reason(JdbcTemplate jdbc,UUID id) {
@@ -117,6 +138,10 @@ class ScreeningMigrationTest {
                 insert into app.report_assessment(report_id,job_state,photo_id,seller_name,seller_tax_id,document_number)
                 values(?,'done',?,?,?,'TEST-FACTURE')
                 """,id,photo,seller,nif);
+        if(nif!=null) {
+            var reading=jdbc.queryForObject("select id from app.document_reading where document_reference=?",UUID.class,photo.toString());
+            jdbc.update("insert into app.extracted_field(id,reading_id,name,value,present) values(?,?,'sellerTaxId',?,true)",UUID.randomUUID(),reading,nif);
+        }
         return id;
     }
 

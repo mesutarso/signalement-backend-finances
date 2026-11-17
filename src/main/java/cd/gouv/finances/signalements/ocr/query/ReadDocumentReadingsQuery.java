@@ -18,7 +18,7 @@ public class ReadDocumentReadingsQuery {
 
     private final ReadingRepository readingRepository;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.read')")
     @Transactional(readOnly = true)
     public Map<String, ReadingResponse> latest(Collection<String> references) {
         if (references == null || references.isEmpty()) {

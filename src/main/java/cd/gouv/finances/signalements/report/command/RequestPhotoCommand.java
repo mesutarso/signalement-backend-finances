@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class RequestPhotoCommand {
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     public PhotoRequestResponse execute(UUID reportId, UUID photoId, String reason, UUID actorId) {
         throw new ReportRejected("photo-request-retired", 410);
     }

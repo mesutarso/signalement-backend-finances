@@ -20,7 +20,7 @@ public class ReadLetterAnnexQuery {
     private final LetterRepository letterRepository;
     private final LetterLineRepository letterLineRepository;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public byte[] execute(UUID id, String annex) {
         if (!SPREADSHEETS.contains(annex)) {

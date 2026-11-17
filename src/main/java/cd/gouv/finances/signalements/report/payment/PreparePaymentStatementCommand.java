@@ -32,7 +32,7 @@ public class PreparePaymentStatementCommand {
     public record Prepared(UUID id, boolean created) {
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('payment.prepare')")
     @Transactional
     public Prepared execute(UUID actorId) {
         if (paymentStatementRepository.findFirstByStatusIn(List.of(PaymentStatement.DRAFT, PaymentStatement.CONTROLLED, PaymentStatement.VISAED)).isPresent()) {

@@ -22,13 +22,14 @@ class PrecalculatedAssessmentTest {
     }
 
     @Test
-    void identifiesWhichFiscalBranchStillNeedsPurchaseOrNormalizationEvidence() {
+    void identifiesWhichFiscalBranchStillNeedsNormalizationEvidence() {
         var facts = facts("unknown", "unknown", "unknown", "yes", "unique", false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "done", Map.of()), facts, false, "READABLE");
 
         assertThat(result.ifRegistered().state()).isEqualTo("doubt");
         assertThat(result.ifUnregistered().state()).isEqualTo("validated");
         assertThat(result.onlyFiscalStatusMissing()).isFalse();
+        assertThat(result.criteria()).noneMatch(c -> c.key().equals("purchaseConformity"));
         assertThat(result.criteria()).filteredOn(c -> c.key().equals("normalization"))
                 .singleElement().satisfies(c -> assertThat(c.value()).isEqualTo("unknown"));
     }

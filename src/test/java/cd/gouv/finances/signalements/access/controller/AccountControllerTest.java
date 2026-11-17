@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.access.controller;
 
+import cd.gouv.finances.signalements.access.Role;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,7 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.test.context.support.WithMockUser;
+import cd.gouv.finances.signalements.access.security.WithRole;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,6 +36,11 @@ class AccountControllerTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private org.springframework.jdbc.core.JdbcTemplate visibilityJdbc;
 
+
+    @MockitoBean
+    private cd.gouv.finances.signalements.access.command.ManageAccountsCommand manageAccounts;
+    @MockitoBean
+    private cd.gouv.finances.signalements.audit.command.RecordAudit audit;
 
     @Autowired
     private MockMvc mockMvc;
@@ -60,17 +66,18 @@ class AccountControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void refusesAccountCreationByAnAuditor() throws Exception {
         mockMvc.perform(post("/api/accounts")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"agent1\",\"password\":\"Unit-test-42safe\",\"role\":\"AGENT\"}"))
                 .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().encoding("UTF-8"))
                 .andExpect(jsonPath("$.code").value("forbidden"));
     }
     @Test
-    @WithMockUser(roles = "ADMINISTRATOR")
+    @WithRole(Role.ADMINISTRATOR)
     void forwardsSearchAndFiltersToThePagedQuery() throws Exception {
         mockMvc.perform(get("/api/accounts")
                         .param("page", "2").param("size", "20")
@@ -81,7 +88,7 @@ class AccountControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "AUDITOR")
+    @WithRole(Role.AUDITOR)
     void refusesAccountChangesByAnAuditor() throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .patch("/api/accounts/00000000-0000-0000-0000-000000000001")

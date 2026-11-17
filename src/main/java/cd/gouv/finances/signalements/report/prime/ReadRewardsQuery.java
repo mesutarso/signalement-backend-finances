@@ -23,7 +23,7 @@ public class ReadRewardsQuery {
     private final JdbcTemplate jdbc;
     public ReadRewardsQuery(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.read')")
     @Transactional(readOnly = true)
     public RewardPageResponse execute(int page) {
         var requested = Math.max(page, 0);
@@ -38,7 +38,7 @@ public class ReadRewardsQuery {
         return new RewardPageResponse(withReviews(rows), requested, SIZE, total == null ? 0 : total);
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.read')")
     @Transactional(readOnly = true)
     public RewardResponse executeOne(UUID primeId) {
         var rows = jdbc.query("""

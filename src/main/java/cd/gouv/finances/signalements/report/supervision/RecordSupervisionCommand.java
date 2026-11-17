@@ -22,7 +22,7 @@ public class RecordSupervisionCommand {
     private final SupervisionReviewRepository supervisionReviewRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('supervision.write')")
     @Transactional
     public boolean execute(UUID reportId, String result, String reason, UUID actorId) {
         if (!RESULTS.contains(result)) {

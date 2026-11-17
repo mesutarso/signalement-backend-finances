@@ -25,13 +25,14 @@ public class ReplacePasswordCommand {
     @PreAuthorize("isAuthenticated()")
     @Transactional
     public void execute(UUID accountId, ReplacePasswordRequest request, AccountUserDetails caller) {
-        boolean administrator = caller.getRole() == Role.ADMINISTRATOR;
+        boolean administrator = caller.hasPermission("user.reset-password");
         boolean self = caller.getAccountId().equals(accountId);
         if (!self && !administrator) {
             throw new AccessRejected("forbidden", 403);
         }
         var account = userAccountRepository.findById(accountId).orElseThrow(() -> new AccessRejected("absent", 404));
-        if (self && (request.currentPassword() == null
+        if (account.getDeletedAt() != null) throw new AccessRejected("absent", 404);
+        if (self && !administrator && (request.currentPassword() == null
                 || !passwordEncoder.matches(request.currentPassword(), account.getPasswordHash()))) {
             throw new AccessRejected("rejected-credentials", 401);
         }

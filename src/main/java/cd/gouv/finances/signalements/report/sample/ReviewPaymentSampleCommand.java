@@ -17,7 +17,7 @@ public class ReviewPaymentSampleCommand {
     private final PaymentSampleLineRepository paymentSampleLineRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('sample.review')")
     @Transactional
     public void execute(UUID lineId, String result, String reason, UUID actorId) {
         var outcome = result == null ? "" : result.trim();

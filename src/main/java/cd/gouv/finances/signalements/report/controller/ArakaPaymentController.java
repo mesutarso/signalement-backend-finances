@@ -29,7 +29,7 @@ public class ArakaPaymentController {
     public record Status(String environment, boolean configured, List<PaymentTransfers.Transfer> transfers) { }
 
     @GetMapping("/api/payment-transfers")
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR','CELLULE','CABINET','PAYMASTER')")
+    @PreAuthorize("hasAuthority('payment.read')")
     public Status status(@RequestParam(required = false) UUID statementId) { return new Status(properties.sandbox() ? "sandbox" : "production", properties.configured(), statementId == null ? transfers.recent() : transfers.forStatement(statementId)); }
 
     @PostMapping("/api/payment-transfers/tests")

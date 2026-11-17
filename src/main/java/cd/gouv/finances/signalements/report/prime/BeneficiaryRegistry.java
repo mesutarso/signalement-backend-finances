@@ -32,7 +32,7 @@ public class BeneficiaryRegistry {
         jdbc.queryForObject("select pg_advisory_xact_lock(783962140)", Object.class);
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.read')")
     @Transactional(readOnly = true)
     public Situation read(String reference) {
         var declarant = declarant(reference);
@@ -44,7 +44,7 @@ public class BeneficiaryRegistry {
         return new Situation(true, count == null ? 0 : count, reserved, ceiling, Math.max(0L, ceiling - reserved));
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('beneficiary.verify')")
     @Transactional
     public void verify(String reference, String beneficiaryReference, String evidence, UUID actorId) {
         var kept = beneficiaryReference == null ? "" : beneficiaryReference.trim().toUpperCase(Locale.ROOT);

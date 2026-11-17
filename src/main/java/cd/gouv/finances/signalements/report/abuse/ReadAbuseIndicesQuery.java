@@ -31,7 +31,7 @@ public class ReadAbuseIndicesQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('abuse.read')")
     @Transactional(readOnly = true)
     public AbuseIndexPageResponse execute(int page) {
         var requested = Math.max(page, 0);

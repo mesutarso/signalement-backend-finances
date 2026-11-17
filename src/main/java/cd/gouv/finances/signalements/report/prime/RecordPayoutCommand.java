@@ -18,7 +18,7 @@ public class RecordPayoutCommand {
     private final PayoutNumberRepository payoutNumberRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reward.approve')")
     @Transactional
     public Optional<UUID> execute(String declarantId, UUID actorId) {
         if (declarantId == null || declarantId.isBlank()) {

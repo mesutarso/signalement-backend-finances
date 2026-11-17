@@ -15,11 +15,12 @@ public class AssessmentEvaluation {
     public Result calculate(AssessmentStore.Snapshot assessment) {
         var reportId = assessment.reportId();
         var uniqueness = "duplicate".equals(evidence.duplicateStatus(reportId)) ? "duplicate" : assessment.uniqueness();
+        var missingTaxId = evidence.taxIdMissingAfterReading(reportId, assessment.photoId());
         var facts = new ValidationRules.Facts(assessment.vatStatus(), assessment.normalization(),
                 assessment.purchaseConformity(), assessment.vatCharged(), uniqueness, assessment.photoId() != null,
-                present(assessment.sellerName()) || present(assessment.sellerTaxId()), evidence.unresolvedDuplicates(reportId));
+                present(assessment.sellerTaxId()) && !missingTaxId, evidence.unresolvedDuplicates(reportId));
         var readability = evidence.readability(reportId, assessment.photoId());
-        if (!facts.identityPresent() && assessment.photoId() == null && evidence.identityMissingAfterReading(reportId)) {
+        if (missingTaxId) {
             readability = "PARTIAL";
         }
         var screeningReason = ValidationRules.screeningReason(facts, readability);

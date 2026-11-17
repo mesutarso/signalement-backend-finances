@@ -27,7 +27,14 @@ public class AccountSessionFilter extends OncePerRequestFilter {
             boolean valid;
             try {
                 var current = userDetailsService.loadUserByUsername(principal.getUsername());
-                valid = current.isEnabled() && current.getAuthorities().equals(principal.getAuthorities());
+                valid = current.isEnabled() && current.isAccountNonLocked()
+                        && current.getUsername().equals(principal.getUsername())
+                        && current.getPassword().equals(principal.getPassword())
+                        && current instanceof AccountUserDetails currentAccount
+                        && currentAccount.getAccountId().equals(principal.getAccountId())
+                        && java.util.Set.copyOf(current.getAuthorities()).equals(authentication.getAuthorities().stream()
+                            .filter(authority -> !(authority instanceof org.springframework.security.core.authority.FactorGrantedAuthority))
+                            .collect(java.util.stream.Collectors.toSet()));
             } catch (UsernameNotFoundException exception) {
                 valid = false;
             }
@@ -37,6 +44,7 @@ public class AccountSessionFilter extends OncePerRequestFilter {
                 if (session != null) session.invalidate();
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
+                response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8);
                 response.getWriter().write("{\"code\":\"session-expired\",\"message\":\"Reconnectez-vous à la plateforme.\"}");
                 return;
             }

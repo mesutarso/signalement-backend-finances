@@ -39,6 +39,8 @@ public class AccountController {
     private final UpdateAccountCommand updateAccountCommand;
     private final ReplacePasswordCommand replacePasswordCommand;
     private final ReadAccountsQuery readAccountsQuery;
+    private final cd.gouv.finances.signalements.access.command.ManageAccountsCommand manageAccounts;
+    private final cd.gouv.finances.signalements.audit.command.RecordAudit audit;
 
     @GetMapping("/api/accounts")
     @Operation(summary = "Lists accounts")
@@ -54,14 +56,32 @@ public class AccountController {
     @PostMapping("/api/accounts")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Creates an account")
-    public AccountResponse create(@Valid @RequestBody CreateAccountRequest request) {
-        return createAccountCommand.execute(request);
+    public AccountResponse create(@Valid @RequestBody CreateAccountRequest request, @AuthenticationPrincipal AccountUserDetails caller) {
+        var result = createAccountCommand.execute(request);
+        audit.allowed(caller.getAccountId(), "account-create", "account", result.id().toString());
+        return result;
     }
 
     @PatchMapping("/api/accounts/{id}")
     @Operation(summary = "Changes an account role or enabled state")
-    public AccountResponse update(@PathVariable UUID id, @RequestBody UpdateAccountRequest request) {
-        return updateAccountCommand.execute(id, request);
+    public AccountResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateAccountRequest request, @AuthenticationPrincipal AccountUserDetails caller) {
+        var result = updateAccountCommand.execute(id, request);
+        audit.allowed(caller.getAccountId(), "account-update", "account", id.toString());
+        return result;
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/api/accounts/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails caller) {
+        manageAccounts.delete(id, caller.getAccountId());
+        audit.allowed(caller.getAccountId(), "account-delete", "account", id.toString());
+    }
+
+    @PostMapping("/api/accounts/{id}/unlock")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlock(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails caller) {
+        manageAccounts.unlock(id);
+        audit.allowed(caller.getAccountId(), "account-unlock", "account", id.toString());
     }
 
     @PutMapping("/api/accounts/{id}/password")

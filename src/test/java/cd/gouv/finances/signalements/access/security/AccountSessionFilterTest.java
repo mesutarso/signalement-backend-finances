@@ -28,6 +28,48 @@ class AccountSessionFilterTest {
         checkRejected(Role.AUDITOR, true);
     }
 
+    @Test
+    void passwordAuthenticationFactorsDoNotInvalidateAnUnchangedAccountsSession() throws Exception {
+        var principal = new AccountUserDetails(UUID.randomUUID(), "agent", "hash", Role.AGENT, true, true);
+        var authorities = new java.util.ArrayList<org.springframework.security.core.GrantedAuthority>(principal.getAuthorities());
+        authorities.add(org.springframework.security.core.authority.FactorGrantedAuthority.fromAuthority("FACTOR_PASSWORD"));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, authorities));
+        var service = mock(UserDetailsService.class);
+        when(service.loadUserByUsername("agent")).thenReturn(principal);
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+        new AccountSessionFilter(service).doFilter(new MockHttpServletRequest(), response, chain);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(chain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void invalidatesASessionAfterAPasswordReset() throws Exception {
+        var id = UUID.randomUUID();
+        var old = new AccountUserDetails(id, "agent", "old-hash", Role.AGENT, true, true);
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(old, null, old.getAuthorities()));
+        SecurityContextHolder.setContext(context);
+        var service = mock(UserDetailsService.class);
+        when(service.loadUserByUsername("agent")).thenReturn(new AccountUserDetails(id, "agent", "new-hash", Role.AGENT, true, true));
+        var response = new MockHttpServletResponse();
+        new AccountSessionFilter(service).doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void invalidatesLegacyRoleOnlySessionsInsteadOfKeepingStaleAuthorities() throws Exception {
+        var id = UUID.randomUUID();
+        var principal = new AccountUserDetails(id, "agent", "hash", Role.AGENT, true, true);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_AGENT"))));
+        var service = mock(UserDetailsService.class);
+        when(service.loadUserByUsername("agent")).thenReturn(principal);
+        var response = new MockHttpServletResponse();
+        new AccountSessionFilter(service).doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
     private void checkRejected(Role nextRole, boolean enabled) throws Exception {
         var id = UUID.randomUUID();
         var principal = new AccountUserDetails(id, "agent", "hash", Role.AGENT, true, true);

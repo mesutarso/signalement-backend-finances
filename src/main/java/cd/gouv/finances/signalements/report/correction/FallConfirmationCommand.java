@@ -25,7 +25,7 @@ public class FallConfirmationCommand {
     private final cd.gouv.finances.signalements.report.validation.AssessmentStore assessmentStore;
     private final cd.gouv.finances.signalements.report.validation.FixedRewards fixedRewards;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('correction.decide')")
     @Transactional
     public UUID execute(String reference, String reason, UUID actorId) {
         var keptReason = reason == null ? "" : reason.trim();

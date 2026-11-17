@@ -30,7 +30,7 @@ public class ReadImportsQuery {
         this.cron = CronExpression.parse(cron);
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('import.read')")
     @Transactional(readOnly = true)
     public ImportPageResponse execute(int page) {
         var runs = reportImportRepository.findAllByOrderByStartedAtDesc(PageRequest.of(Math.max(page, 0), 20));

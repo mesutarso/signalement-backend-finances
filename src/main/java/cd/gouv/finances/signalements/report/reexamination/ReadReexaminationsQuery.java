@@ -18,7 +18,7 @@ public class ReadReexaminationsQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reexam.read')")
     @Transactional(readOnly = true)
     public ReexaminationPageResponse execute(int page) {
         var requested = Math.max(page, 0);

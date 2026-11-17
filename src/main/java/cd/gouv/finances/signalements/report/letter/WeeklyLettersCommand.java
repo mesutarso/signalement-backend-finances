@@ -25,7 +25,7 @@ public class WeeklyLettersCommand {
     public record Route(String taxId, String service) { }
     public record DispatchInfo(String service, LocalDate sentOn, String reference) { }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public DispatchInfo dispatchInfo(UUID id) {
         var rows = jdbc.query("""
@@ -36,14 +36,14 @@ public class WeeklyLettersCommand {
         return rows.getFirst();
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public List<Route> routes() {
         return jdbc.query("select tax_id, service_name from app.letter_route order by service_name, tax_id",
                 (row, number) -> new Route(row.getString(1), row.getString(2)));
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.dispatch')")
     @Transactional
     public void route(String taxId, String service, UUID actor) {
         var tax = taxId == null ? "" : taxId.trim().toUpperCase(Locale.ROOT);
@@ -57,7 +57,7 @@ public class WeeklyLettersCommand {
         audit.allowed(actor, "letter-routing", "taxpayer", tax);
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.prepare')")
     @Transactional
     public List<UUID> prepare(UUID actor) {
         jdbc.queryForObject("select pg_advisory_xact_lock(783962141)", Object.class);
@@ -95,7 +95,7 @@ public class WeeklyLettersCommand {
         return List.copyOf(ids);
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.dispatch')")
     @Transactional
     public void dispatch(UUID id, LocalDate sentOn, String reference, UUID actor) {
         var kept = reference == null ? "" : reference.trim();

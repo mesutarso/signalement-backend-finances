@@ -25,7 +25,7 @@ public class PrepareDrawTicketsCommand {
     public record Confirmed(UUID reportId, String reference, String personKey) {
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('draw.manage')")
     @Transactional
     public int execute(LocalDate month) {
         if (month == null || month.getDayOfMonth() != 1) {

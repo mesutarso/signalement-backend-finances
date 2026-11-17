@@ -16,7 +16,7 @@ public class ReadDrawsQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('draw.read')")
     @Transactional(readOnly = true)
     public DrawPageResponse execute() {
         var tickets = jdbc.query("""

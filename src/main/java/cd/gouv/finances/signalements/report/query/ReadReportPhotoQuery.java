@@ -15,7 +15,7 @@ public class ReadReportPhotoQuery {
 
     private final ReportPhotoRepository reportPhotoRepository;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.read')")
     @Transactional(readOnly = true)
     public PhotoFile execute(UUID reportId, UUID photoId) {
         var photo = reportPhotoRepository.findByReportAndId(reportId, photoId)

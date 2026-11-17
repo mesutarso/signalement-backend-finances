@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadPaymentSamplesQuery {
 
     private static final int SIZE = 20;
-    private static final String READERS = "hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')";
+    private static final String READERS = "hasAuthority('sample.read')";
 
     private final JdbcTemplate jdbc;
 

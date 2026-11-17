@@ -2,13 +2,16 @@ package cd.gouv.finances.signalements.access.security;
 
 import cd.gouv.finances.signalements.access.Role;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
+import cd.gouv.finances.signalements.access.Permission;
 import java.util.UUID;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public class AccountUserDetails implements UserDetails {
+    private static final long serialVersionUID = -6341149328941554161L;
 
     private final UUID accountId;
     private final String username;
@@ -36,13 +39,18 @@ public class AccountUserDetails implements UserDetails {
         return accountId;
     }
 
+    public boolean hasPermission(String code) { return Permission.forRole(role).contains(code); }
+
     public Role getRole() {
         return role;
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        var authorities = new ArrayList<GrantedAuthority>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        Permission.forRole(role).forEach(code -> authorities.add(new SimpleGrantedAuthority(code)));
+        return List.copyOf(authorities);
     }
 
     @Override

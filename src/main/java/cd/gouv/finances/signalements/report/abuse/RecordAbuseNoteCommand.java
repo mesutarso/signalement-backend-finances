@@ -22,7 +22,7 @@ public class RecordAbuseNoteCommand {
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('abuse.write')")
     @Transactional
     public void execute(String fingerprint, String decision, String reason, UUID actorId) {
         if (!DECISIONS.contains(decision)) {

@@ -42,6 +42,13 @@ public class UserAccount {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
+    public void rename(String username) { this.username = username; }
+    public void unlock() { failedAttempts = 0; lockedUntil = null; }
+    public void archive(Instant now) { deletedAt = now; enabled = false; }
+
     protected UserAccount() {
     }
 

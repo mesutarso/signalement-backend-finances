@@ -22,7 +22,7 @@ public class ReadSellerFilesQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('dossier.read')")
     @Transactional(readOnly = true)
     public SellerFilePageResponse execute(String status, int page) {
         var identified = !"unidentified".equals(FILTERS.contains(status) ? status : "identified");

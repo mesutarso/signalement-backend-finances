@@ -37,7 +37,7 @@ public class ReadReportsQuery {
         }
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.read')")
     @Transactional(readOnly = true)
     public ReportPageResponse execute(int page, int size, boolean includeReporter, ReportSearch search) {
         var safePage = Math.max(page, 0);

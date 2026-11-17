@@ -25,7 +25,7 @@ public class RecordReexaminationCommand {
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('reexam.decide')")
     @Transactional
     public UUID execute(String reference, String text, LocalDate receivedOn, UUID actorId) {
         var kept = text == null ? "" : text.trim();

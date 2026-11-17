@@ -24,7 +24,7 @@ public class DecideDuplicateCommand {
     private final cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry beneficiaries;
     private final cd.gouv.finances.signalements.report.validation.AnalysisJobs analysisJobs;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     @Transactional
     public void execute(UUID reportId, UUID alertId, String decision, String reason, UUID actorId) {
         beneficiaries.lock();

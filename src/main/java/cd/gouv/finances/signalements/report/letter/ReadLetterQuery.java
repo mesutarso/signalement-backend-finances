@@ -24,7 +24,7 @@ public class ReadLetterQuery {
     private final LetterLineRepository letterLineRepository;
     private final JdbcTemplate jdbc;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.read')")
     @Transactional(readOnly = true)
     public LetterDetailResponse execute(UUID id) {
         var letter = letterRepository.findById(id).orElseThrow(() -> new ReportRejected("letter-absent", 404));

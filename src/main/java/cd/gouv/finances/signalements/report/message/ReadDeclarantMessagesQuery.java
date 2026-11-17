@@ -18,7 +18,7 @@ public class ReadDeclarantMessagesQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('message.read')")
     @Transactional(readOnly = true)
     public DeclarantMessagePageResponse execute(int page) {
         var requested = Math.max(page, 0);

@@ -9,8 +9,6 @@ class ValidationRulesTest {
     @ParameterizedTest
     @CsvSource({
         "registered,non-normalized,unknown,unknown,validated,non-normalized",
-        "registered,normalized,nonconform,yes,validated,nonconform",
-        "registered,unknown,nonconform,unknown,validated,nonconform",
         "unregistered,unknown,unknown,yes,validated,vat-unregistered"
     })
     void acceptsExactlyTheApprovedAlternativeCases(String vat, String normalization, String purchase, String charged, String state, String finding) {
@@ -22,7 +20,9 @@ class ValidationRulesTest {
     @ParameterizedTest
     @CsvSource({
         "unknown,non-normalized,nonconform,yes,unique,doubt",
-        "registered,normalized,unknown,yes,unique,doubt",
+        "registered,normalized,unknown,yes,unique,rejected",
+        "registered,normalized,nonconform,yes,unique,rejected",
+        "registered,unknown,nonconform,yes,unique,doubt",
         "registered,unknown,conform,yes,unique,doubt",
         "unregistered,non-normalized,nonconform,unknown,unique,doubt",
         "registered,non-normalized,nonconform,yes,unknown,doubt",
@@ -55,7 +55,7 @@ class ValidationRulesTest {
     }
 
     @Test
-    void screensMissingIdentityOnlyAfterASuccessfulReadingAndBeforeFiscalCriteria() {
+    void screensMissingTaxIdOnlyAfterASuccessfulReadingAndBeforeFiscalCriteria() {
         var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", "unknown", true, false, false);
         for (var quality : new String[] {"READABLE", "PARTIAL"}) {
             assertThat(ValidationRules.assess(missing, false, quality).state()).isEqualTo("rejected");
@@ -66,5 +66,15 @@ class ValidationRulesTest {
         assertThat(ValidationRules.screeningReason(missing, "UNREADABLE")).isEqualTo("unreadable");
         var duplicate = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", "duplicate", true, true, false);
         assertThat(ValidationRules.screeningReason(duplicate, "READABLE")).isEqualTo("duplicate");
+    }
+
+    @Test
+    void purchaseConformityDoesNotAffectTheDecision() {
+        for (var purchase : new String[] {"unknown", "conform", "nonconform"}) {
+            assertThat(ValidationRules.assess(facts("registered", "normalized", purchase, "yes", "unique")).state())
+                    .isEqualTo("rejected");
+            assertThat(ValidationRules.assess(facts("registered", "non-normalized", purchase, "yes", "unique")).state())
+                    .isEqualTo("validated");
+        }
     }
 }

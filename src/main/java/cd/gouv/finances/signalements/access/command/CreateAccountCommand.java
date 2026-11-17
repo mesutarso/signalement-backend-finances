@@ -24,7 +24,7 @@ public class CreateAccountCommand {
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('user.create')")
     @Transactional
     public AccountResponse execute(CreateAccountRequest request) {
         var username = AccountDetailsService.normalize(request.username());

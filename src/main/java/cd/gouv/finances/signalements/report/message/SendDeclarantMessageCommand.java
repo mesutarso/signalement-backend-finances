@@ -15,7 +15,7 @@ public class SendDeclarantMessageCommand {
     private final UnikronSmsGateway gateway;
     private final RecordAudit audit;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('message.send')")
     public SmsResult execute(UUID messageId, UUID actorId) {
         var submission = store.claim(messageId);
         // No database transaction or pooled connection is held during the network call.

@@ -175,6 +175,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(AccessRejected.class)
     ResponseEntity<ApiError> accessRejected(AccessRejected rejected) {
+        if ("self-deletion".equals(rejected.code())) return ResponseEntity.status(409).body(new ApiError("self-deletion", "Vous ne pouvez pas supprimer votre propre compte."));
         return ResponseEntity.status(rejected.status()).body(error(rejected.code()));
     }
 
@@ -201,6 +202,7 @@ public class ApiExceptionHandler {
             case "assessment-value" -> "Une vérification comporte une valeur non acceptée.";
             case "assessment-evidence" -> "Indiquez la source ou le justificatif de chaque vérification renseignée.";
             case "assessment-busy" -> "L’analyse des pièces est en cours. Actualisez le dossier avant de vérifier.";
+            case "assessment-screened" -> "Ce dossier est rejeté automatiquement : doublon, photo illisible ou NIF non récupéré.";
             case "assessment-required" -> "Utilisez la nouvelle grille de vérification pour ce signalement.";
             case "reward-amount" -> "Indiquez un montant de récompense positif.";
             case "reward-validation" -> "Le signalement doit être validé avant de poursuivre le paiement.";

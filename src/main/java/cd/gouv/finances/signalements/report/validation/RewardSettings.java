@@ -27,10 +27,10 @@ public class RewardSettings {
                 r.getString("username"), r.getTimestamp("recorded_at").toInstant()));
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('setting.read')")
     public Setting read() { return active(); }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('setting.write')")
     @Transactional
     public void change(int amount, UUID expectedId, UUID actorId) {
         if (amount <= 0) throw new ReportRejected("reward-amount", 400);

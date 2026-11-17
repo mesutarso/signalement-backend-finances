@@ -20,7 +20,7 @@ public class DecideLetterCommand {
     private final LetterRepository letterRepository;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('letter.validate')")
     @Transactional
     public boolean execute(UUID letterId, String result, String recipient, String reason, UUID actorId) {
         if (!RESULTS.contains(result)) {

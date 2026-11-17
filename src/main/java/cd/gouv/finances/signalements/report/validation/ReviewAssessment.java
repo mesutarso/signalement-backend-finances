@@ -1,12 +1,12 @@
 package cd.gouv.finances.signalements.report.validation;
 
 import cd.gouv.finances.signalements.report.ReportRejected;
+import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +24,15 @@ public class ReviewAssessment {
     private final AssessmentDecision decision;
     private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
+    private final AutomaticDuplicates duplicates;
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     @Transactional
     public void fiscalStatus(UUID reportId, FiscalStatusReview review, UUID actorId) {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
+        requireNotScreened(current);
         require(review.vatStatus(), Set.of("registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
         var now = Timestamp.from(clock.instant());
         jdbc.update("""
@@ -40,37 +42,33 @@ public class ReviewAssessment {
         decision.apply(reportId, "manual", actorId);
     }
 
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     @Transactional
     public void execute(UUID reportId, AssessmentReview review, UUID actorId) {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
-        require(review.vatStatus(), Set.of("unknown", "registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
-        require(review.normalization(), Set.of("unknown", "normalized", "non-normalized"), review.normalizationEvidence());
-        require(review.purchaseConformity(), Set.of("unknown", "conform", "nonconform"), review.purchaseEvidence());
-        require(review.vatCharged(), Set.of("unknown", "yes", "no"), review.vatChargeEvidence());
-        require(review.uniqueness(), Set.of("unknown", "unique", "duplicate"), review.uniquenessEvidence());
-        var photoId = evidence.selected(reportId, review.photoId());
+        requireNotScreened(current);
+        var normalizationEvidence = "unknown".equals(review.normalization()) ? null
+                : java.util.Objects.equals(review.normalization(), current.normalization()) && clean(current.normalizationEvidence()) != null
+                ? current.normalizationEvidence() : "Normalisation renseignée par l’agent à partir de la facture.";
+        require(review.normalization(), Set.of("unknown", "normalized", "non-normalized"), normalizationEvidence);
         LocalDate documentDate;
         try { documentDate = review.documentDate() == null ? null : LocalDate.parse(review.documentDate()); }
         catch (DateTimeParseException invalid) { throw new ReportRejected("qualification-date", 400); }
-        var reading = photoId == null ? null : evidence.latest(photoId);
-        var fields = reading == null ? Map.<String, String>of() : reading.fields();
         var now = Timestamp.from(clock.instant());
         jdbc.update("""
-                update app.report_assessment set photo_id = ?, seller_name = ?, seller_tax_id = ?, document_number = ?, document_date = ?,
-                    vat_status = ?, vat_evidence = ?, vat_source = ?, checked_by = ?, checked_at = ?,
-                    normalization = ?, normalization_evidence = ?, purchase_conformity = ?, purchase_evidence = ?,
-                    vat_charged = ?, vat_charge_evidence = ?, unique_invoice = ?, uniqueness_evidence = ?,
-                    extracted = ?::jsonb, updated_at = ? where report_id = ?
-                """, photoId, clean(review.sellerName()), clean(review.sellerTaxId()), clean(review.documentNumber()),
-                documentDate,
-                review.vatStatus(), fiscalEvidence(review.vatStatus(), review.vatEvidence()), "unknown".equals(review.vatStatus()) ? null : "manual",
-                "unknown".equals(review.vatStatus()) ? null : actorId, "unknown".equals(review.vatStatus()) ? null : now,
-                review.normalization(), clean(review.normalizationEvidence()), review.purchaseConformity(), clean(review.purchaseEvidence()),
-                review.vatCharged(), clean(review.vatChargeEvidence()), review.uniqueness(), clean(review.uniquenessEvidence()),
-                store.json(fields), now, reportId);
+                update app.report_assessment set seller_name = ?, seller_tax_id = ?, document_number = ?, document_date = ?,
+                    normalization = ?, normalization_evidence = ?, updated_at = ? where report_id = ?
+                """, clean(review.sellerName()), clean(review.sellerTaxId()), clean(review.documentNumber()),
+                documentDate, review.normalization(), normalizationEvidence, now, reportId);
+        if (!java.util.Objects.equals(clean(current.sellerTaxId()), clean(review.sellerTaxId()))) {
+            jdbc.update("""
+                    update app.report_assessment set vat_status = 'unknown', vat_evidence = null,
+                        vat_source = null, checked_by = null, checked_at = null where report_id = ?
+                    """, reportId);
+        }
+        duplicates.prepareUniqueness(reportId);
         decision.apply(reportId, "manual", actorId);
     }
 
@@ -82,6 +80,14 @@ public class ReviewAssessment {
     private static void requireCurrent(AssessmentStore.Snapshot current, long revision) {
         if (current.revision() != revision) throw new ReportRejected("stale", 409);
         if (!"done".equals(current.jobState())) throw new ReportRejected("assessment-busy", 409);
+    }
+
+    private void requireNotScreened(AssessmentStore.Snapshot current) {
+        if (evidence.taxIdMissingAfterReading(current.reportId(), current.photoId())
+                || "duplicate".equals(evidence.duplicateStatus(current.reportId()))
+                || "UNREADABLE".equals(evidence.readability(current.reportId(), current.photoId()))) {
+            throw new ReportRejected("assessment-screened", 409);
+        }
     }
 
     private static String clean(String text) { return text == null || text.isBlank() ? null : text.trim(); }

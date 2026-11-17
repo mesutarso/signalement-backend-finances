@@ -23,7 +23,7 @@ public class ValidationController {
     private final RewardSettings settings;
 
     @GetMapping("/api/reports/{id}/assessment")
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.read')")
     public AssessmentStore.View one(@PathVariable UUID id) { return store.view(id); }
 
     @PostMapping("/api/reports/{id}/assessment")
@@ -34,7 +34,7 @@ public class ValidationController {
     }
 
     @PostMapping("/api/reports/{id}/assessment/fiscal-status")
-    @PreAuthorize("hasAnyRole('AGENT','SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.review')")
     public AssessmentStore.View fiscalStatus(@PathVariable UUID id, @Valid @RequestBody FiscalStatusReview body,
                                              @AuthenticationPrincipal AccountUserDetails account) {
         review.fiscalStatus(id, body, account.getAccountId());
@@ -42,7 +42,7 @@ public class ValidationController {
     }
 
     @PostMapping("/api/reports/{id}/analysis")
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.analyze')")
     public AssessmentStore.View analyze(@PathVariable UUID id) {
         store.read(id);
         jobs.enqueue(id, false);

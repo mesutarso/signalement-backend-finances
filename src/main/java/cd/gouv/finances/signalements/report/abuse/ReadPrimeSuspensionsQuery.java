@@ -15,7 +15,7 @@ public class ReadPrimeSuspensionsQuery {
         this.jdbc = jdbc;
     }
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('abuse.read')")
     @Transactional(readOnly = true)
     public PrimeSuspensionResponse execute() {
         var items = jdbc.query("""

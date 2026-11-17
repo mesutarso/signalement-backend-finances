@@ -25,7 +25,7 @@ public class AssignReportCommand {
     private final AssigneeDirectory assigneeDirectory;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('report.assign')")
     @Transactional
     public void execute(UUID reportId, long version, UUID assigneeId, String priority, UUID actorId) {
         var report = reportRepository.findById(reportId).orElseThrow(() -> new ReportRejected("report-absent", 404));

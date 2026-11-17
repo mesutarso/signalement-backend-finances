@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadPaymentStatementsQuery {
 
     private static final int SIZE = 20;
-    private static final String READERS = "hasAnyRole('SUPERVISOR','AUDITOR','ADMINISTRATOR','CELLULE','CABINET','PAYMASTER')";
+    private static final String READERS = "hasAuthority('payment.read')";
 
     private final JdbcTemplate jdbc;
 

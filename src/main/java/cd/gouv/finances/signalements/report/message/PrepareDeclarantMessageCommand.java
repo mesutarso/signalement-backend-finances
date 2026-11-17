@@ -20,7 +20,7 @@ public class PrepareDeclarantMessageCommand {
     private final MessageDrafts messageDrafts;
     private final Clock clock;
 
-    @PreAuthorize("hasAnyRole('SUPERVISOR','ADMINISTRATOR')")
+    @PreAuthorize("hasAuthority('message.prepare')")
     @Transactional
     public UUID execute(String reference, String kind, UUID actorId) {
         var report = reportReference.require(reference);
