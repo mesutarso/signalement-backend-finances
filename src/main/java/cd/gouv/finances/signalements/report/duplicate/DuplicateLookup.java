@@ -46,17 +46,22 @@ public class DuplicateLookup {
     public List<FieldRow> readings() {
         return jdbc.query(
                 """
-                select p.report_id, f.name, f.value
-                from app.report_photo p
-                join app.document_reading d
-                  on d.document_reference = cast(p.id as text)
-                 and d.status = 'READ'
-                join app.extracted_field f
-                  on f.reading_id = d.id
-                 and f.present
-                where f.name in ('documentNumber', 'sellerTaxId', 'readCode')
+                select a.report_id, f.name, f.value
+                from app.report_assessment a join app.report r on r.id=a.report_id
+                cross join lateral (values ('documentNumber',a.document_number),('sellerTaxId',a.seller_tax_id),
+                  ('readCode',a.extracted->>'readCode')) f(name,value)
+                where r.validation_state<>'legacy' and a.job_state='done' and nullif(trim(f.value),'') is not null
                 """,
                 (row, number) -> new FieldRow(row.getObject(1, UUID.class), row.getString(2), row.getString(3)));
+    }
+
+    public UUID replacementPriority(UUID left, UUID right) {
+        var matches=jdbc.query("""
+                select report_id from app.photo_request where status='linked' and
+                ((report_id=? and linked_report_id=?) or (report_id=? and linked_report_id=?))
+                order by resolved_at desc limit 1
+                """,(r,n)->r.getObject(1,UUID.class),left,right,right,left);
+        return matches.isEmpty()?null:matches.getFirst();
     }
 
     public List<Timing> timings(List<UUID> ids) {

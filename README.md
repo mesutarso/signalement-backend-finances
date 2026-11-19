@@ -29,7 +29,7 @@ Les appels FACNO (liste, détail et images) utilisent Resilience4j CircuitBreake
 
 ## Circuit interne et recette
 
-La [validation par les cinq critères et les récompenses configurables](VALIDATION.md) décrit le circuit actuel, la vérification fiscale manuelle en attendant DGI-REP et la reprise des anciennes décisions.
+La [validation des factures et les récompenses configurables](VALIDATION.md) décrit le circuit actuel, la vérification fiscale manuelle en attendant DGI-REP et la reprise des anciennes décisions.
 
 Le contrôle des bénéficiaires, les courriers par service, le budget et les archives de rapports sont décrits dans [la recette du 10 novembre 2026](RECETTE_2026-11-10.md). Elle fournit les commandes reproductibles et les limites de validation externe. Une identité vérifiée est requise avant toute approbation de prime. Les nouvelles API SITAX, les notifications et la gateway ne sont pas activées par ces corrections.
 
@@ -37,7 +37,7 @@ Le contrôle des bénéficiaires, les courriers par service, le budget et les ar
 
 Configurer `UNIKRON_ENDPOINT`, `UNIKRON_USER_NAME` et `UNIKRON_APP_KEY` dans `.env`. `UNIKRON_SENDER_ID` vaut `FACNO RDC` par défaut. Le mode par défaut `UNIKRON_MODE=development` bloque tous les destinataires sauf `0827243119` et `0852214059`, convertis respectivement en `243827243119` et `243852214059`.
 
-Les messages sont envoyés explicitement depuis `/messages`, par un superviseur ou administrateur. Le SMS de test est réservé aux administrateurs. Aucun brouillon existant n’est envoyé automatiquement. Les secrets, le contenu des SMS et les réponses brutes du fournisseur ne sont pas journalisés.
+Les messages sont envoyés explicitement depuis `/messages`, par un superviseur ou administrateur. Les agents peuvent aussi préparer et envoyer une demande de nouvelle photo depuis le dossier, uniquement au déclarant enregistré. Le SMS de test est réservé aux administrateurs. Aucun brouillon existant n’est envoyé automatiquement. Les secrets, le contenu des SMS et les réponses brutes du fournisseur ne sont pas journalisés.
 
 Le client réutilise sa connexion HTTP, avec un délai de connexion de 3 secondes, une requête limitée à 10 secondes et quatre appels simultanés maximum. Le circuit breaker utilise 10 appels, un minimum de 5 appels, un seuil de 50 % d’échecs, une ouverture de 60 secondes et une seule sonde de reprise. Les erreurs réseau, HTTP 429 et HTTP 5xx alimentent le circuit ; les erreurs locales et les autres refus HTTP ne le déclenchent pas. Aucune relance automatique n’est effectuée.
 

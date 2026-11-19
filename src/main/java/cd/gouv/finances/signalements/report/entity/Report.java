@@ -75,6 +75,10 @@ public class Report {
     @Column(name = "assignee_id")
     private UUID assigneeId;
 
+    @jakarta.persistence.OneToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "id", referencedColumnName = "report_id", insertable = false, updatable = false)
+    private ReportAssessmentIndex assessment;
+
     @Version
     @Column(nullable = false)
     private long version;

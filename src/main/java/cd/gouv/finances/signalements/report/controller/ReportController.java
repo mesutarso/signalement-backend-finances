@@ -57,6 +57,7 @@ public class ReportController {
     private final PrepareDuplicateAlerts prepareDuplicateAlerts;
     private final DecideDuplicateCommand decideDuplicateCommand;
     private final RecordAudit recordAudit;
+    private final cd.gouv.finances.signalements.report.command.SendPhotoRequestCommand sendPhotoRequest;
 
     @GetMapping("/api/reports")
     @Operation(summary = "Lists the work queue")
@@ -69,12 +70,20 @@ public class ReportController {
             @RequestParam(required = false) String validation,
             @RequestParam(required = false) UUID assigneeId,
             @RequestParam(defaultValue = "false") boolean unassigned,
+            @RequestParam(required = false) java.time.LocalDate start,
+            @RequestParam(required = false) java.time.LocalDate end,
+            @RequestParam(required = false) String vat,
+            @RequestParam(required = false) String reading,
+            @RequestParam(required = false) String missing,
+            @RequestParam(required = false) String duplicates,
+            @RequestParam(required = false) String photoRequest,
+            @RequestParam(required = false) String sort,
             @AuthenticationPrincipal AccountUserDetails account) {
         return readReportsQuery.execute(
                 page,
                 size,
                 account != null && account.hasPermission("report.identity"),
-                new ReadReportsQuery.ReportSearch(q, state, priority, assigneeId, unassigned, validation));
+                new ReadReportsQuery.ReportSearch(q, state, priority, assigneeId, unassigned, validation,start,end,vat,reading,missing,duplicates,photoRequest,sort));
     }
 
     @GetMapping("/api/reports/assignees")
@@ -135,6 +144,13 @@ public class ReportController {
         return response;
     }
 
+    @PostMapping("/api/reports/{id}/photo-requests/{requestId}/deliveries")
+    public cd.gouv.finances.signalements.sms.SmsResult sendPhotoRequest(
+            @PathVariable UUID id, @PathVariable UUID requestId,
+            @AuthenticationPrincipal AccountUserDetails account) {
+        return sendPhotoRequest.execute(id,requestId,account.getAccountId());
+    }
+
     @PostMapping("/api/reports/{id}/photo-requests/{requestId}/links")
     @Operation(summary = "Links a later report as the replacement photo")
     public PhotoRequestResponse linkPhoto(
@@ -142,7 +158,7 @@ public class ReportController {
             @PathVariable UUID requestId,
             @Valid @RequestBody PhotoLinkBody body,
             @AuthenticationPrincipal AccountUserDetails account) {
-        var response = linkPhotoRequestCommand.execute(id, requestId, body.referenceCode());
+        var response = linkPhotoRequestCommand.execute(id, requestId, body.referenceCode(), account.getAccountId());
         recordAudit.allowed(account.getAccountId(), "photo-link", "report", id.toString());
         return response;
     }

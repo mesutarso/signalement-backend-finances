@@ -58,13 +58,14 @@ class PrecalculatedAssessmentTest {
     }
 
     @Test
-    void unreadablePhotoIsRejectedInBothBranchesWithoutWaitingForFiscalStatus() {
+    void unreadablePhotoWaitsForReplacementInBothBranches() {
         var facts = facts("unknown", "unknown", "unknown", "unknown", "unknown", false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "done", Map.of()), facts, false, "UNREADABLE");
-        assertThat(result.ifRegistered().state()).isEqualTo("rejected");
-        assertThat(result.ifUnregistered().state()).isEqualTo("rejected");
+        assertThat(result.ifRegistered().state()).isEqualTo("doubt");
+        assertThat(result.ifUnregistered().state()).isEqualTo("doubt");
+        assertThat(result.missingFields()).contains("Photo lisible");
         assertThat(result.onlyFiscalStatusMissing()).isFalse();
-        assertThat(ValidationRules.assess(facts, false, "UNREADABLE").reason()).isEqualTo("Photo illisible.");
+        assertThat(ValidationRules.assess(facts, false, "UNREADABLE").reason()).isEqualTo("Une photo plus nette de la facture est nécessaire.");
         assertThat(ValidationRules.assess(facts, false, "UNKNOWN").state()).isEqualTo("doubt");
     }
 

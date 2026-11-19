@@ -14,7 +14,7 @@ public class ReadAssigneesQuery {
 
     private final AssigneeDirectory assigneeDirectory;
 
-    @PreAuthorize("hasAuthority('report.assign')")
+    @PreAuthorize("hasAuthority('report.read')")
     @Transactional(readOnly = true)
     public List<AssigneeResponse> execute() {
         return assigneeDirectory.agents();

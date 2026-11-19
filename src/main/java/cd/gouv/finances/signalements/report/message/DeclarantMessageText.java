@@ -15,6 +15,7 @@ public final class DeclarantMessageText {
     public static final String SITUATION = "situation";
 
     private static final Map<String, String> PATTERNS = Map.of(
+            PHOTO, "Facture %s : renvoyez une photo nette et entière en rappelant cette référence.",
             PAYOUT, "Prime %s : ajoutez votre numéro Mobile Money dans votre espace.",
             REEXAMINATION, "Votre réexamen %s est terminé. Consultez la réponse en ligne.",
             SITUATION, "Votre signalement %s a été mis à jour. Consultez votre espace.");
@@ -28,7 +29,6 @@ public final class DeclarantMessageText {
     }
 
     public static String pattern(String kind) {
-        if (PHOTO.equals(kind)) throw new ReportRejected("photo-request-retired", 410);
         var pattern = PATTERNS.get(kind);
         if (pattern == null) {
             throw new ReportRejected("message-kind", 400);

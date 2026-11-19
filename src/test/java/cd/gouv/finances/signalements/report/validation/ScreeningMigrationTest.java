@@ -48,7 +48,7 @@ class ScreeningMigrationTest {
         var decision=new AssessmentDecision(jdbc,store,evaluation,rewards,Clock.systemUTC());
         for(var id:java.util.List.of(missing,nameOnly,nifOnly,failed,unreadable)) decision.apply(id,"automatic",null);
         assertThat(reason(jdbc,missing)).isEqualTo("identity-missing");
-        assertThat(store.view(missing).precalculation()).isNull();
+        assertThat(store.view(missing).precalculation()).isNotNull();
         assertThat(reason(jdbc,nameOnly)).isEqualTo("identity-missing");
         assertThat(store.read(nifOnly).state()).isEqualTo("doubt");
         assertThat(reason(jdbc,nifOnly)).isNull();
@@ -85,12 +85,12 @@ class ScreeningMigrationTest {
         var otherDate=report(jdbc,"OTHER-DATE","Vendeur","TEST-NIF","READABLE","other-date");
         for(var id:java.util.List.of(invoiceA,invoiceB,otherDate)) {
             jdbc.update("""
-                    update app.report_assessment set extracted='{"sellerTaxId":"TEST-NIF","documentNumber":"FACT-1",
+                    update app.report_assessment set document_number='FACT-1', extracted='{"sellerTaxId":"TEST-NIF","documentNumber":"FACT-1",
                     "documentDate":"2026-11-10","totalAmount":"116000","currency":"CDF"}'::jsonb where report_id=?
                     """,id);
         }
         jdbc.update("update app.report set reported_at=reported_at-interval '1 day' where id=?",invoiceA);
-        jdbc.update("update app.report_assessment set extracted=jsonb_set(extracted,'{documentDate}','\"2026-11-11\"') where report_id=?",otherDate);
+        jdbc.update("update app.report_assessment set document_date='2026-11-11', extracted=jsonb_set(extracted,'{documentDate}','\"2026-11-11\"') where report_id=?",otherDate);
         duplicates.execute(invoiceB); decision.apply(invoiceB,"automatic",null);
         assertThat(reason(jdbc,invoiceB)).isEqualTo("duplicate");
         duplicates.execute(otherDate); decision.apply(otherDate,"automatic",null);
@@ -100,9 +100,9 @@ class ScreeningMigrationTest {
 
         var review=new ReviewAssessment(jdbc,store,new AssessmentEvidence(jdbc),decision,
                 mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class),Clock.systemUTC(),duplicates);
-        review.fiscalStatus(nifOnly,new FiscalStatusReview(store.read(nifOnly).revision(),"unregistered",null),UUID.randomUUID());
+        review.fiscalStatus(nifOnly,new FiscalStatusReview(store.read(nifOnly).revision(),"unregistered","Référentiel fiscal de recette"),UUID.randomUUID());
         assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unregistered");
-        assertThat(store.read(nifOnly).vatEvidence()).contains("temporairement");
+        assertThat(store.read(nifOnly).vatEvidence()).contains("Référentiel fiscal");
 
         jdbc.update("update app.report_assessment set vat_charged='yes',vat_charge_evidence='TVA extraite automatiquement' where report_id=?",nifOnly);
         var before=store.read(nifOnly);
@@ -119,8 +119,9 @@ class ScreeningMigrationTest {
         review.execute(nifOnly,new AssessmentReview(corrected.revision(),"Vendeur corrigé","NIF-CORRIGÉ","FACTURE-CORRIGÉE","2026-11-10","non-normalized"),UUID.randomUUID());
         assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unknown");
         assertThat(store.read(nifOnly).state()).isEqualTo("doubt");
-        assertThatThrownBy(() -> review.execute(nameOnly,new AssessmentReview(store.read(nameOnly).revision(),"Vendeur","NIF-AJOUTÉ","FACTURE","2026-11-10","non-normalized"),UUID.randomUUID()))
-                .isInstanceOf(cd.gouv.finances.signalements.report.ReportRejected.class);
+        review.execute(nameOnly,new AssessmentReview(store.read(nameOnly).revision(),"Vendeur","NIF-AJOUTÉ","FACTURE","2026-11-10","non-normalized"),UUID.randomUUID());
+        assertThat(store.read(nameOnly).sellerTaxId()).isEqualTo("NIF-AJOUTÉ");
+        assertThat(reason(jdbc,nameOnly)).isNull();
     }
 
     private static String reason(JdbcTemplate jdbc,UUID id) {
@@ -135,8 +136,8 @@ class ScreeningMigrationTest {
                 """,id,reference,reference);
         var photo=photo(jdbc,id,fingerprint,quality);
         jdbc.update("""
-                insert into app.report_assessment(report_id,job_state,photo_id,seller_name,seller_tax_id,document_number)
-                values(?,'done',?,?,?,'TEST-FACTURE')
+                insert into app.report_assessment(report_id,job_state,photo_id,seller_name,seller_tax_id,document_number,document_date)
+                values(?,'done',?,?,?,'TEST-FACTURE','2026-11-10')
                 """,id,photo,seller,nif);
         if(nif!=null) {
             var reading=jdbc.queryForObject("select id from app.document_reading where document_reference=?",UUID.class,photo.toString());

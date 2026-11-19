@@ -29,6 +29,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReadReportQueryTest {
 
     @Mock
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Mock
     private ReportRepository reportRepository;
 
     @Mock
@@ -75,6 +78,7 @@ class ReadReportQueryTest {
         when(supervisionReviewRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         var query = new ReadReportQuery(
                 reportRepository,
+                jdbc,
                 assigneeDirectory,
                 readDocumentReadingsQuery,
                 photoRequestRepository,
@@ -129,6 +133,7 @@ class ReadReportQueryTest {
         when(supervisionReviewRepository.findByReportIdOrderByRecordedAtDesc(id)).thenReturn(List.of());
         var query = new ReadReportQuery(
                 reportRepository,
+                jdbc,
                 assigneeDirectory,
                 readDocumentReadingsQuery,
                 photoRequestRepository,

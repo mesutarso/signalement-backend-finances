@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /** Invoice screening and fiscal rules. Unknown evidence never becomes a positive finding. */
 public final class ValidationRules {
-    public static final String VERSION = "invoice-essentials-2026-11-16";
+    public static final String VERSION = "invoice-completion-2026-11-19";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     private ValidationRules() { }
@@ -29,21 +29,21 @@ public final class ValidationRules {
     }
 
     public static Decision screen(Facts facts, String readability) {
-        if ("UNREADABLE".equals(readability)) {
-            return new Decision("rejected", null, "Photo illisible.");
-        }
         if ("duplicate".equals(facts.uniqueness())) {
             return new Decision("rejected", null, "Facture déjà signalée.");
         }
+        if ("UNREADABLE".equals(readability)) {
+            return doubt("Une photo plus nette de la facture est nécessaire.");
+        }
         if (!facts.taxIdPresent() && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) {
-            return new Decision("rejected", null, "NIF de l’établissement non récupéré sur la facture.");
+            return doubt("Le NIF est à compléter. Vérifiez la photo ou demandez une nouvelle pièce.");
         }
         return null;
     }
 
     public static String screeningReason(Facts facts, String readability) {
-        if ("UNREADABLE".equals(readability)) return "unreadable";
         if ("duplicate".equals(facts.uniqueness())) return "duplicate";
+        if ("UNREADABLE".equals(readability)) return "unreadable";
         return screen(facts, readability) == null ? null : "identity-missing";
     }
 

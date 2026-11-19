@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadReportQuery {
 
     private final ReportRepository reportRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final AssigneeDirectory assigneeDirectory;
     private final ReadDocumentReadingsQuery readDocumentReadingsQuery;
     private final PhotoRequestRepository photoRequestRepository;
@@ -80,6 +81,10 @@ public class ReadReportQuery {
                         entry -> UUID.fromString(entry.getKey()),
                         entry -> PhotoReadingMapper.from(entry.getValue())));
         var names = assigneeDirectory.names(ids);
+        record Delivery(UUID requestId, UUID messageId, String status, String body) { }
+        var deliveries = jdbc.query("select photo_request_id,id,status,body from app.declarant_message where report_id=? and photo_request_id is not null",
+                (r,n)->new Delivery(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getString(4)),id)
+                .stream().collect(Collectors.toMap(Delivery::requestId,d->d));
         var photoRequests = requests.stream()
                 .map(request -> new PhotoRequestResponse(
                         request.getId(),
@@ -93,6 +98,8 @@ public class ReadReportQuery {
                         request.getResolvedAt(),
                         request.getLinkedReportId() == null ? null : linked.get(request.getLinkedReportId()),
                         request.getNotice()))
+                .map(response -> { var delivery=deliveries.get(response.id());
+                    return delivery==null ? response : response.withMessage(delivery.messageId(),delivery.status(),delivery.body()); })
                 .toList();
         return ReportMapper.toResponse(
                 report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names), reviews);

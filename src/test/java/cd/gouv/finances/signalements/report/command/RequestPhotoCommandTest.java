@@ -1,111 +1,23 @@
 package cd.gouv.finances.signalements.report.command;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import cd.gouv.finances.signalements.ocr.query.ReadDocumentReadingsQuery;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 import cd.gouv.finances.signalements.report.ReportRejected;
-import cd.gouv.finances.signalements.report.entity.PhotoRequest;
-import cd.gouv.finances.signalements.report.message.MessageDrafts;
-import cd.gouv.finances.signalements.report.repository.PhotoRequestRepository;
-import cd.gouv.finances.signalements.report.repository.ReportPhotoRepository;
-import cd.gouv.finances.signalements.report.repository.ReportRepository;
+import cd.gouv.finances.signalements.report.validation.AnalysisJobs;
+import cd.gouv.finances.signalements.report.validation.AssessmentStore;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 
-@ExtendWith(MockitoExtension.class)
 class RequestPhotoCommandTest {
-
-    @Mock
-    private ReportPhotoRepository reportPhotoRepository;
-
-    @Mock
-    private PhotoRequestRepository photoRequestRepository;
-
-    @Mock
-    private ReadDocumentReadingsQuery readDocumentReadingsQuery;
-
-    @Mock
-    private MessageDrafts messageDrafts;
-
-    @Mock
-    private ReportRepository reportRepository;
-
-    private final Clock clock = Clock.fixed(Instant.parse("2026-11-06T20:00:00Z"), ZoneOffset.UTC);
-
-    @Test
-    void refusesNewPhotoRequestsWithoutWritingOrPreparingAMessage() {
-        var command = new RequestPhotoCommand();
-        assertThatThrownBy(() -> command.execute(UUID.randomUUID(), UUID.randomUUID(), "Photo floue", UUID.randomUUID()))
-                .isInstanceOf(ReportRejected.class)
-                .satisfies(error -> {
-                    assertThat(((ReportRejected) error).code()).isEqualTo("photo-request-retired");
-                    assertThat(((ReportRejected) error).status()).isEqualTo(410);
-                });
-        org.mockito.Mockito.verifyNoInteractions(reportPhotoRepository, photoRequestRepository, readDocumentReadingsQuery, messageDrafts);
-    }
-
-    @Test
-    void refusesToLinkTheSameReport() {
-        var reportId = UUID.randomUUID();
-        var request = new PhotoRequest(
-                UUID.randomUUID(),
-                "NP-2026-000002",
-                reportId,
-                UUID.randomUUID(),
-                "Illisible",
-                PhotoRequest.REVIEW,
-                UUID.randomUUID(),
-                clock.instant());
-        when(photoRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
-        when(reportRepository.findIdsByVisibleReference("origine")).thenReturn(List.of(reportId));
-        var command = new LinkPhotoRequestCommand(photoRequestRepository, reportRepository, clock);
-
-        assertThatThrownBy(() -> command.execute(reportId, request.getId(), "origine"))
-                .isInstanceOf(ReportRejected.class)
-                .extracting(error -> ((ReportRejected) error).code())
-                .isEqualTo("same-report");
-        assertThat(request.getStatus()).isEqualTo(PhotoRequest.OPEN);
-        assertThat(request.getLinkedReportId()).isNull();
-    }
-
-    @Test
-    void linksAnotherReportWithoutChangingTheRequestReason() {
-        var reportId = UUID.randomUUID();
-        var otherId = UUID.randomUUID();
-        var request = new PhotoRequest(
-                UUID.randomUUID(),
-                "NP-2026-000003",
-                reportId,
-                UUID.randomUUID(),
-                "Illisible",
-                PhotoRequest.REVIEW,
-                UUID.randomUUID(),
-                clock.instant());
-        when(photoRequestRepository.findById(request.getId())).thenReturn(Optional.of(request));
-        when(reportRepository.findIdsByVisibleReference("autre-001")).thenReturn(List.of(otherId));
-        when(reportRepository.findReferencesByIdIn(List.of(otherId))).thenReturn(List.of());
-        when(photoRequestRepository.saveAndFlush(request)).thenReturn(request);
-        var command = new LinkPhotoRequestCommand(photoRequestRepository, reportRepository, clock);
-
-        var linked = command.execute(reportId, request.getId(), "autre-001");
-
-        assertThat(request.getStatus()).isEqualTo(PhotoRequest.LINKED);
-        assertThat(request.getLinkedReportId()).isEqualTo(otherId);
-        assertThat(request.getReason()).isEqualTo("Illisible");
-        assertThat(linked.resolvedAt()).isEqualTo(clock.instant());
-        verify(reportRepository, never()).save(any());
+    @Test void refusesPhotoRequestsOnAClosedDossier() {
+        var jdbc=mock(JdbcTemplate.class);var jobs=mock(AnalysisJobs.class);var store=mock(AssessmentStore.class);
+        var id=UUID.randomUUID();var snapshot=mock(AssessmentStore.Snapshot.class);
+        when(store.lock(id)).thenReturn(snapshot);when(snapshot.state()).thenReturn("validated");
+        var command=new RequestPhotoCommand(jdbc,jobs,store,Clock.systemUTC());
+        assertThatThrownBy(()->command.execute(id,UUID.randomUUID(),"Photo floue",UUID.randomUUID()))
+                .isInstanceOf(ReportRejected.class).extracting(e->((ReportRejected)e).code()).isEqualTo("photo-request-state");
+        verifyNoInteractions(jdbc);
     }
 }

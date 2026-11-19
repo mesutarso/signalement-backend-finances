@@ -9,6 +9,7 @@ public record PrecalculatedAssessment(
         boolean fiscalStatusMissing,
         boolean onlyFiscalStatusMissing,
         List<Criterion> criteria,
+        List<String> missingFields,
         ValidationRules.Decision ifRegistered,
         ValidationRules.Decision ifUnregistered) {
 
@@ -18,6 +19,8 @@ public record PrecalculatedAssessment(
                                                     ValidationRules.Facts facts, boolean alreadyRewarded, String readability) {
         var registered = forecast(facts, "registered", alreadyRewarded, readability);
         var unregistered = forecast(facts, "unregistered", alreadyRewarded, readability);
+        var completion = completion(assessment, readability);
+        if (completion != null && !"duplicate".equals(facts.uniqueness())) { registered=completion; unregistered=completion; }
         var complete = "done".equals(assessment.jobState());
         if (!complete) {
             registered = ValidationRules.doubt("L’analyse des pièces doit être terminée avant de conclure.");
@@ -28,12 +31,27 @@ public record PrecalculatedAssessment(
                 && !"doubt".equals(unregistered.state()) && "doubt".equals(ValidationRules.assess(facts, alreadyRewarded, readability).state());
         return new PrecalculatedAssessment(ValidationRules.VERSION, complete, missing, fiscalOnly,
                 List.of(new Criterion("readability", "Lisibilité de la photo", readability, "ocr",
-                                "UNREADABLE".equals(readability) ? "Photo illisible : rejet, sans demande de remplacement."
+                                "UNREADABLE".equals(readability) ? "Une nouvelle photo est nécessaire."
                                         : "READABLE".equals(readability) ? "Les éléments essentiels de la facture ont été extraits."
                                         : "PARTIAL".equals(readability) ? "La lecture est partielle ; elle ne suffit pas à déclarer la photo illisible."
                                         : "La lisibilité n’est pas encore établie. Une panne OCR n’est pas une photo illisible."),
                         normalization(assessment), vat(assessment), uniqueness(assessment, facts)),
+                missingFields(assessment, readability),
                 registered, unregistered);
+    }
+
+    public static List<String> missingFields(AssessmentStore.Snapshot a, String readability) {
+        var missing = new java.util.ArrayList<String>();
+        if (a.photoId() == null || "UNREADABLE".equals(readability)) missing.add("Photo lisible");
+        if (!present(a.sellerTaxId())) missing.add("NIF");
+        if (!present(a.documentNumber())) missing.add("Numéro de facture");
+        if (a.documentDate() == null) missing.add("Date de facture");
+        return List.copyOf(missing);
+    }
+
+    public static ValidationRules.Decision completion(AssessmentStore.Snapshot a, String readability) {
+        var missing=missingFields(a,readability);
+        return missing.isEmpty() ? null : ValidationRules.doubt("À compléter : " + String.join(", ",missing) + ".");
     }
 
     private static ValidationRules.Decision forecast(ValidationRules.Facts facts, String vatStatus, boolean alreadyRewarded, String readability) {

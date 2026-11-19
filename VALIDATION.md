@@ -3,10 +3,9 @@
 La migration V44 introduit la grille approuvée le 12 novembre 2026. Un signalement doit concerner une facture non déjà signalée et satisfaire l’un des cas suivants :
 
 - établissement assujetti à la TVA et facture non normalisée ;
-- établissement assujetti à la TVA et montant ou articles non conformes à l’achat réel ;
 - établissement non assujetti qui facture de la TVA.
 
-Une information inconnue reste à vérifier. Le score OCR ne prouve ni l’assujettissement, ni la normalisation, ni l’achat réel. Les critères sont alternatifs selon le cas : ils ne peuvent pas tous être vrais simultanément.
+Une information inconnue reste à vérifier. Le score OCR ne prouve ni l’assujettissement, ni la normalisation, ni l’achat réel. Les deux cas sont alternatifs. La conformité à l’achat réel reste une ancienne donnée conservée ; elle ne participe plus à la grille courante.
 
 ## Précalcul sans DGI-REP
 
@@ -16,23 +15,31 @@ L’agent voit d’abord les critères préparés et renseigne l’assujettissem
 
 Le précalcul et la décision enregistrée utilisent le même moteur, y compris les doublons non résolus, les doublons confirmés et les factures déjà récompensées. Les deux prévisions sont des résultats conditionnels et ne créent aucun droit. L’agent ne choisit pas arbitrairement la décision finale : celle-ci découle des faits et du statut fiscal renseigné.
 
-Les références DEF détectées sont présentées comme indices, sans inventer une normalisation vérifiée. La conformité à l’achat réel nécessite des éléments comparatifs ; l’absence d’alerte ne prouve pas l’unicité de la facture. Si ces éléments restent inconnus, le précalcul l’indique pour la branche concernée et le formulaire de correction reste disponible. Aucun appel DGI-REP n’est nécessaire pour cette préparation.
+Les références DEF détectées sont présentées comme indices, sans inventer une normalisation vérifiée. L’absence d’alerte ne prouve pas l’unicité de la facture. Le précalcul signale les éléments encore inconnus et le formulaire de correction reste disponible. Aucun appel DGI-REP n’est nécessaire pour cette préparation.
 
-## Photo illisible : rejet sans demande de remplacement
+## Informations incomplètes et nouvelle photo
 
-La version de règle `criteria-readable-2026-11-15` rejette une photo de référence dont une extraction réussie retourne `UNREADABLE`, même sans statut fiscal. Si aucune pièce n’est encore sélectionnée et que toutes les pièces sont déclarées illisibles après extraction réussie, le dossier est également rejeté. Une pièce illisible parmi plusieurs ne suffit pas à rejeter les autres pièces lisibles.
+La règle `invoice-completion-2026-11-19` conserve les dossiers illisibles ou incomplets dans `doubt`, affichés « À compléter ». Le précalcul fournit `missingFields` (photo lisible, NIF, numéro, date). L’absence d’une référence DEF ne suffit pas à prouver une facture non normalisée. Un incident du fournisseur de lecture n’est pas une preuve d’illisibilité.
 
-Les erreurs de fournisseur, quotas, délais dépassés et formats non pris en charge ne sont pas assimilés à une photo illisible. Une lecture `PARTIAL` n’établit pas non plus l’illisibilité : elle peut correspondre à un élément réellement absent sur la facture. Ces cas restent à vérifier, ou sont repris selon le mécanisme existant.
+L’agent peut corriger le NIF, le numéro, la date et la normalisation depuis la fiche. Une correction du NIF remet la confirmation fiscale à vérifier. L’assujettissement exige une référence de vérification ; l’auteur et la date sont conservés.
 
-Les nouvelles demandes de photo sont désactivées : l’ancien endpoint répond HTTP 410, le bouton est retiré, et aucun message de remplacement n’est créé. La préparation et l’envoi des messages de type `photo`, y compris des anciens brouillons, sont refusés. Les anciennes demandes et les messages déjà enregistrés restent consultables.
+`POST /api/reports/{id}/photos/{photoId}/requests` prépare une demande et un SMS de 100 caractères maximum. Une demande ouverte par pièce est conservée, y compris en cas de double clic. L’envoi explicite utilise `/api/reports/{id}/photo-requests/{requestId}/deliveries`, autorisé à l’agent pour cette seule demande et le numéro du déclarant enregistré. Aucun destinataire ni contenu libre n’est accepté. Les états d’envoi existants empêchent un second envoi accepté ou incertain. Les anciens brouillons photo sans demande restent bloqués.
+
+Le rattachement `/api/reports/{id}/photo-requests/{requestId}/links` vérifie que le nouveau signalement appartient au même déclarant, conserve les originaux, copie les nouvelles pièces dans le dossier initial, clôture la demande et relance l’analyse. Le signalement de remplacement est exclu comme deuxième demande de récompense. Une relance terminée quitte le filtre des demandes ouvertes ; sa trace reste consultable. Une nouvelle relance dispose de son propre message.
+
+La migration V49 ajoute la relation entre demande et message et des index. Les écritures existantes sont conservées. Le mode SMS de production reste inchangé ; les tests locaux utilisent uniquement un simulateur.
+
+## File et fiche agent
+
+La recherche porte également sur établissement, NIF et numéro de facture. Les filtres par période, agent, statut TVA, lecture, informations manquantes, doublons et relance sont appliqués côté serveur avant pagination. Le tri est global. La fiche conserve le contexte de recherche pour le retour, le précédent et le suivant. Elle affiche les éléments manquants, les critères et les deux prévisions fiscales avec les actions de correction et de relance.
 
 ## Circuit de traitement
 
 L’import crée un travail durable dans la même transaction que le dossier et ses pièces. Le traitement extrait les données, prépare les rapprochements puis applique la règle. Les états sont `queued`, `analyzing`, `doubt`, `validated`, `rejected` et `legacy`.
 
-Le rôle AGENT consulte uniquement les dossiers `doubt`, y compris pour les liens directs vers les pièces. Les superviseurs et administrateurs gardent la vue globale ; les auditeurs disposent de la consultation. Le changement d’état est indépendant de l’affectation du dossier.
+Le rôle AGENT travaille par défaut sur les dossiers `doubt`. Il peut consulter les autres dossiers courants ; leurs modifications restent réservées aux rôles autorisés. Les superviseurs et administrateurs gardent la vue globale ; les auditeurs disposent de la consultation. Le changement d’état est indépendant de l’affectation du dossier.
 
-En attendant les accès DGI-REP, l’agent confirme l’assujettissement à partir d’une source fiscale identifiée et saisit sa référence. L’auteur et la date du contrôle sont enregistrés. La normalisation et la comparaison avec l’achat réel exigent aussi des justificatifs lorsqu’elles sont renseignées. Une photo déclarée illisible est rejetée selon la règle ci-dessus ; les incidents techniques OCR restent à vérifier.
+En attendant les accès DGI-REP, l’agent confirme l’assujettissement à partir d’une source fiscale identifiée et saisit sa référence. L’auteur et la date du contrôle sont enregistrés. La normalisation est renseignée par l’agent à partir de la facture. Une photo déclarée illisible reste à compléter ; les incidents de lecture restent à vérifier.
 
 `FiscalRegistry` constitue le point de raccordement prévu pour DGI-REP. L’implémentation actuelle retourne « indisponible » : aucun appel DGI-REP ni simulation d’assujettissement n’est utilisé. Le contrôle fiscal de l’agent remplace temporairement cette source, sans arrêter le traitement automatique en amont.
 
@@ -67,3 +74,7 @@ Les dossiers ayant déjà une qualification ou des mouvements de points sont mar
 `scripts/recette_validation.py` vérifie les parcours HTTP sur des données synthétiques avec un simulateur OCR/FACNO local. Il nécessite les conteneurs de recette PostgreSQL/Redis et un fichier privé `--runtime` décrit dans son en-tête. Il ne contacte aucun fournisseur et ne réalise aucun paiement réel. Les mots de passe de recette ne doivent pas être ajoutés au dépôt.
 
 Recette locale du 15 novembre 2026 : 168 tests Java recensés, dont 165 réussis et trois tests de fournisseurs externes ignorés ; les tests PostgreSQL de migration et de concurrence sont activés sur un serveur éphémère. Les 33 contrôles HTTP réussissent, incluant le précalcul sans DGI-REP, la conservation des données lors de la saisie fiscale, les décisions différentes selon l’assujettissement, le rejet des photos illisibles et le refus des anciennes demandes et brouillons de remplacement. Build frontend, TypeScript et lint des fichiers modifiés réussis. Parcours agent vérifié dans Next.js en développement, sans erreur de compilation ni d’exécution ; affichage à 390 px sans débordement. Cette recette est synthétique et ne constitue pas un déploiement de production.
+
+## Recette du parcours de complétion
+
+`./mvnw clean verify` couvre les tests Java ; les variables `VALIDATION_JDBC_URL`, `VALIDATION_DB_USER`, `VALIDATION_DB_PASSWORD` activent les tests sur des bases PostgreSQL éphémères. `scripts/recette_completion.py --runtime /chemin/prive/runtime.json --keep-running` vérifie le parcours HTTP avec FACNO, OCR et SMS locaux simulés. Aucun SMS, import ou paiement réel n’est exécuté. Le fichier privé et les conteneurs suivent le format décrit par le script de recette de validation.

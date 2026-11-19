@@ -86,6 +86,7 @@ public class PrepareDuplicateAlerts {
     }
 
     public DuplicatePriority.Side winner(UUID leftId, UUID rightId) {
+        var replacement=duplicateLookup.replacementPriority(leftId,rightId);
         var ids = java.util.List.of(leftId, rightId);
         var timings = duplicateLookup.timings(ids);
         var complete = new HashSet<>(duplicateLookup.completeReports(ids));
@@ -107,6 +108,7 @@ public class PrepareDuplicateAlerts {
         if (left == null || right == null) {
             return null;
         }
+        if (replacement != null) return replacement.equals(leftId) ? left : right;
         return DuplicatePriority.choose(left, right);
     }
 

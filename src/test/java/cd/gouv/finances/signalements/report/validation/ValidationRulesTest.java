@@ -58,7 +58,7 @@ class ValidationRulesTest {
     void screensMissingTaxIdOnlyAfterASuccessfulReadingAndBeforeFiscalCriteria() {
         var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", "unknown", true, false, false);
         for (var quality : new String[] {"READABLE", "PARTIAL"}) {
-            assertThat(ValidationRules.assess(missing, false, quality).state()).isEqualTo("rejected");
+            assertThat(ValidationRules.assess(missing, false, quality).state()).isEqualTo("doubt");
             assertThat(ValidationRules.screeningReason(missing, quality)).isEqualTo("identity-missing");
         }
         assertThat(ValidationRules.assess(missing, false, "UNKNOWN").state()).isEqualTo("doubt");

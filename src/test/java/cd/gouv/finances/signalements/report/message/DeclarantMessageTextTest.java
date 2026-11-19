@@ -17,10 +17,9 @@ class DeclarantMessageTextTest {
     }
 
     @Test
-    void refusesReplacementPhotoMessages() {
-        assertThatThrownBy(() -> DeclarantMessageText.body(DeclarantMessageText.PHOTO, "SIG-1"))
-                .isInstanceOf(ReportRejected.class)
-                .extracting(error -> ((ReportRejected) error).code()).isEqualTo("photo-request-retired");
+    void preparesAReplacementPhotoMessageWithATraceableReference() {
+        assertThat(DeclarantMessageText.body(DeclarantMessageText.PHOTO,"NP-00000001"))
+                .contains("NP-00000001","photo nette").hasSizeLessThanOrEqualTo(100);
     }
 
     @Test void boundsTheFinalSmsIncludingItsReferenceAndLiteralPercentSigns() {

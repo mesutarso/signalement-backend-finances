@@ -53,7 +53,7 @@ class MessageDeliveryMigrationTest {
                 values (?,?,'SMS','photo','Ancienne demande de recette','prepared',?,now())
                 """, retired, report, UUID.randomUUID());
         assertThatThrownBy(() -> store.claim(retired)).isInstanceOf(ReportRejected.class)
-                .extracting(error -> ((ReportRejected) error).code()).isEqualTo("photo-request-retired");
+                .extracting(error -> ((ReportRejected) error).code()).isEqualTo("photo-request-closed");
         assertThat(jdbc.queryForObject("select status from app.declarant_message where id=?", String.class, retired)).isEqualTo("prepared");
     }
 

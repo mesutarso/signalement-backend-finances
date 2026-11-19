@@ -55,6 +55,9 @@ class ReportControllerTest {
     private UserDetailsService userDetailsService;
 
     @MockitoBean
+    private cd.gouv.finances.signalements.report.command.SendPhotoRequestCommand sendPhotoRequest;
+
+    @MockitoBean
     private ReadReportsQuery readReportsQuery;
 
     @MockitoBean

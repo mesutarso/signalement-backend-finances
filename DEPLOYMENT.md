@@ -48,3 +48,7 @@ Le backend utilise le mode Docker Compose géré par Coolify, fichier `/docker-c
 FACNO est configuré et le planning d’import est activé. Les paramètres optionnels Mistral et Herdys ne sont pas renseignés ; aucune valeur n’était fournie localement. Les sauvegardes automatiques hors serveur restent à configurer.
 
 Validation locale : images frontend/backend construites ; quatre services sains dans une stack isolée ; communication frontend → backend par DNS Docker ; données PostgreSQL/Redis conservées après remplacement des conteneurs ; script de sauvegarde PostgreSQL vérifié. La stack de test est supprimée. Les 121 tests backend passent.
+
+## Livraison du 19 novembre 2026 — complétion des factures
+
+La migration additive V49 rattache chaque SMS de nouvelle photo à sa demande. Déployer le backend avant le frontend, après sauvegarde PostgreSQL. Le nouveau moteur reclasse les pièces illisibles ou sans NIF parmi les dossiers à compléter, en réutilisant les lectures disponibles. Les protections des paiements en cours et des dossiers historiques sont conservées. Le frontend précédent doit être remplacé avec cette livraison : la confirmation TVA requiert désormais une référence de contrôle. Le mode SMS reste `development`, avec les deux destinataires de recette déjà autorisés.

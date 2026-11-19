@@ -83,9 +83,7 @@ public class ReviewAssessment {
     }
 
     private void requireNotScreened(AssessmentStore.Snapshot current) {
-        if (evidence.taxIdMissingAfterReading(current.reportId(), current.photoId())
-                || "duplicate".equals(evidence.duplicateStatus(current.reportId()))
-                || "UNREADABLE".equals(evidence.readability(current.reportId(), current.photoId()))) {
+        if ("duplicate".equals(evidence.duplicateStatus(current.reportId()))) {
             throw new ReportRejected("assessment-screened", 409);
         }
     }
@@ -94,6 +92,6 @@ public class ReviewAssessment {
 
     private static String fiscalEvidence(String status, String proof) {
         if ("unknown".equals(status)) return null;
-        return clean(proof) == null ? "Assujettissement renseigné temporairement par l’agent." : clean(proof);
+        return clean(proof);
     }
 }

@@ -194,7 +194,11 @@ public class ApiExceptionHandler {
             case "payment-hold" -> "Un paiement est en cours ou à confirmer pour ce signalement.";
             case "payment-simulation-retired" -> "La simulation est supprimée. Utilisez le versement Araka.";
             case "assessment-absent" -> "Vérification introuvable.";
-            case "photo-request-retired" -> "Les photos illisibles entraînent un rejet. Les demandes d’une autre photo sont désactivées.";
+            case "photo-request-state" -> "Cette demande est réservée aux dossiers à vérifier, après la lecture des pièces.";
+            case "photo-request-reason" -> "Précisez les éléments à reprendre sur la photo.";
+            case "photo-request-required" -> "Préparez la demande depuis la facture concernée.";
+            case "photo-request-closed" -> "Cette demande n’est plus en attente d’une photo.";
+            case "photo-link-owner" -> "La pièce doit provenir d’un signalement du même déclarant et rester disponible pour ce dossier.";
             case "sms-state" -> "Ce message est déjà transmis, en cours d’envoi ou à confirmer.";
             case "sms-absent" -> "Message introuvable.";
             case "sms-test-disabled" -> "Les essais SMS sont désactivés.";
@@ -202,7 +206,7 @@ public class ApiExceptionHandler {
             case "assessment-value" -> "Une vérification comporte une valeur non acceptée.";
             case "assessment-evidence" -> "Indiquez la source ou le justificatif de chaque vérification renseignée.";
             case "assessment-busy" -> "L’analyse des pièces est en cours. Actualisez le dossier avant de vérifier.";
-            case "assessment-screened" -> "Ce dossier est rejeté automatiquement : doublon, photo illisible ou NIF non récupéré.";
+            case "assessment-screened" -> "Ce dossier est écarté comme doublon.";
             case "assessment-required" -> "Utilisez la nouvelle grille de vérification pour ce signalement.";
             case "reward-amount" -> "Indiquez un montant de récompense positif.";
             case "reward-validation" -> "Le signalement doit être validé avant de poursuivre le paiement.";

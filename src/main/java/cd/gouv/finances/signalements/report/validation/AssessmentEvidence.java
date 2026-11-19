@@ -21,7 +21,7 @@ public class AssessmentEvidence {
                           Map<String, String> fields, Instant createdAt) { }
 
     public List<Photo> photos(UUID reportId) {
-        return jdbc.query("select id, content_type from app.report_photo where report_id = ? order by external_id, id",
+        return jdbc.query("select id, content_type from app.report_photo where report_id = ? order by (external_id like 'NP-%') desc, external_id, id",
                 (r, n) -> new Photo(r.getObject(1, UUID.class), r.getString(2)), reportId);
     }
 
@@ -67,10 +67,18 @@ public class AssessmentEvidence {
         if (requested != null) return requested;
         if (photos.size() == 1) return photos.getFirst().id();
         // Choose the first successfully read invoice with a NIF, without asking the agent to select a piece.
-        return photos.stream().map(photo -> latest(photo.id()))
+        var replacements = jdbc.query("""
+                select id from app.report_photo where report_id=? and replacement_request_id=(
+                  select id from app.photo_request where report_id=? and status='linked'
+                  order by resolved_at desc,id desc limit 1) order by external_id,id
+                """,
+                (r,n)->r.getObject(1,UUID.class),reportId,reportId);
+        var candidates = replacements.isEmpty() ? photos : photos.stream().filter(p->replacements.contains(p.id())).toList();
+        var chosen = candidates.stream().map(photo -> latest(photo.id()))
                 .filter(reading -> reading != null && "READ".equals(reading.status())
                         && !blank(reading.fields().get("sellerTaxId")))
                 .map(Reading::photoId).findFirst().orElse(null);
+        return chosen != null ? chosen : candidates.isEmpty() ? null : candidates.getFirst().id();
     }
 
     public boolean taxIdMissingAfterReading(UUID reportId, UUID selectedPhotoId) {

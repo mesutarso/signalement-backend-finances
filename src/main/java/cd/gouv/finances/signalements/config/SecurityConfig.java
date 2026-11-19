@@ -93,10 +93,10 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.DELETE, "/api/accounts/*").hasAuthority("user.delete");
                     requests.requestMatchers(HttpMethod.POST, "/api/accounts/*/unlock").hasAuthority("user.unlock");
                     requests.requestMatchers(HttpMethod.GET, "/api/access/roles").hasAuthority("rbac.read");
-                    requests.requestMatchers(HttpMethod.GET, "/api/reports/assignees").hasAuthority("report.assign");
+                    requests.requestMatchers(HttpMethod.GET, "/api/reports/assignees").hasAuthority("report.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/reports", "/api/reports/**").hasAuthority("report.read");
                     requests.requestMatchers(HttpMethod.PUT, "/api/reports/*/assignment").hasAuthority("report.assign");
-                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/assessment", "/api/reports/*/assessment/fiscal-status", "/api/reports/*/duplicates/*", "/api/reports/*/photos/*/requests", "/api/reports/*/photo-requests/*/links").hasAuthority("report.review");
+                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/assessment", "/api/reports/*/assessment/fiscal-status", "/api/reports/*/duplicates/*", "/api/reports/*/photos/*/requests", "/api/reports/*/photo-requests/*/links", "/api/reports/*/photo-requests/*/deliveries").hasAuthority("report.review");
                     requests.requestMatchers(HttpMethod.POST, "/api/reports/*/analysis", "/api/reports/*/photos/*/readings").hasAuthority("report.analyze");
                     requests.requestMatchers(HttpMethod.POST, "/api/reports/*/supervision").hasAuthority("supervision.write");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-imports", "/api/report-imports/**").hasAuthority("import.read");

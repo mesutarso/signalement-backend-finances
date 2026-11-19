@@ -15,19 +15,16 @@ public class AssessmentEvaluation {
     public Result calculate(AssessmentStore.Snapshot assessment) {
         var reportId = assessment.reportId();
         var uniqueness = "duplicate".equals(evidence.duplicateStatus(reportId)) ? "duplicate" : assessment.uniqueness();
-        var missingTaxId = evidence.taxIdMissingAfterReading(reportId, assessment.photoId());
         var facts = new ValidationRules.Facts(assessment.vatStatus(), assessment.normalization(),
                 assessment.purchaseConformity(), assessment.vatCharged(), uniqueness, assessment.photoId() != null,
-                present(assessment.sellerTaxId()) && !missingTaxId, evidence.unresolvedDuplicates(reportId));
+                present(assessment.sellerTaxId()), evidence.unresolvedDuplicates(reportId));
         var readability = evidence.readability(reportId, assessment.photoId());
-        if (missingTaxId) {
-            readability = "PARTIAL";
-        }
         var screeningReason = ValidationRules.screeningReason(facts, readability);
-        if (screeningReason != null) return new Result(ValidationRules.screen(facts, readability), null, screeningReason);
         var alreadyRewarded = rewards.alreadyRewarded(reportId);
-        return new Result(ValidationRules.assess(facts, alreadyRewarded, readability),
-                PrecalculatedAssessment.calculate(assessment, facts, alreadyRewarded, readability), null);
+        var completion=PrecalculatedAssessment.completion(assessment,readability);
+        var decision=completion!=null && !"duplicate".equals(uniqueness) ? completion : ValidationRules.assess(facts,alreadyRewarded,readability);
+        return new Result(decision,
+                PrecalculatedAssessment.calculate(assessment, facts, alreadyRewarded, readability), screeningReason);
     }
 
     private static boolean present(String value) { return value != null && !value.isBlank(); }

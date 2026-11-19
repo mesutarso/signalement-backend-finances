@@ -86,10 +86,11 @@ public class AutomaticDuplicates {
                   group by p.report_id having bool_and(p.fingerprint is not null)
                 ), invoices as (
                   select a.report_id,
-                    lower(trim(a.extracted->>'sellerTaxId')) as nif,
-                    lower(trim(a.extracted->>'documentNumber')) as number,
-                    trim(a.extracted->>'documentDate') as issued,
-                    trim(a.extracted->>'totalAmount') as amount,
+                    lower(trim(a.seller_tax_id)) as nif,
+                    lower(trim(a.document_number)) as number,
+                    a.document_date::text as issued,
+                    case when trim(a.extracted->>'totalAmount') ~ '^[0-9]+([.,][0-9]{1,2})?$'
+                      then replace(trim(a.extracted->>'totalAmount'),',','.')::numeric end as amount,
                     upper(trim(a.extracted->>'currency')) as currency,
                     nullif(lower(trim(a.extracted->>'readCode')),'') as code
                   from app.report_assessment a join app.report r on r.id=a.report_id
@@ -107,7 +108,7 @@ public class AutomaticDuplicates {
                     and mine.amount=other.amount and mine.currency=other.currency
                     and mine.code is not distinct from other.code
                   where mine.report_id=? and mine.nif<>'' and mine.number<>'' and mine.issued<>''
-                    and mine.amount ~ '^[0-9]+([.,][0-9]{1,2})?$' and mine.currency ~ '^[A-Z]{3}$'
+                    and mine.amount is not null and mine.currency ~ '^[A-Z]{3}$'
                     and mine.issued ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
                     and mine.nif not in ('n/a','na','inconnu','non lu','aucun','null','none','-')
                     and mine.number not in ('n/a','na','inconnu','non lu','aucun','null','none','-')

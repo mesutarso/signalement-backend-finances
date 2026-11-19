@@ -23,6 +23,7 @@ public class PrepareDeclarantMessageCommand {
     @PreAuthorize("hasAuthority('message.prepare')")
     @Transactional
     public UUID execute(String reference, String kind, UUID actorId) {
+        if (DeclarantMessageText.PHOTO.equals(kind)) throw new cd.gouv.finances.signalements.report.ReportRejected("photo-request-required", 400);
         var report = reportReference.require(reference);
         var body = messageDrafts.body(kind, report.reference());
         if (declarantMessageRepository.existsByReportIdAndKind(report.id(), kind)) {

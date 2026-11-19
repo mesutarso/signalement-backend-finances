@@ -27,5 +27,9 @@ public interface ReportRepository extends JpaRepository<Report, UUID>, JpaSpecif
     @Query("select report.id as id, report.externalId as externalId from Report report where report.id in :ids")
     List<ReportReference> findReferencesByIdIn(Collection<UUID> ids);
 
+    @Override
+    @EntityGraph(attributePaths = "assessment")
+    Page<Report> findAll(org.springframework.data.jpa.domain.Specification<Report> specification, Pageable pageable);
+
     Page<Report> findAllByOrderByReportedAtDescReferenceCodeAsc(Pageable pageable);
 }
