@@ -17,9 +17,6 @@ public final class DuplicatePriority {
     }
 
     public static Side choose(Side left, Side right) {
-        if (left.complete() != right.complete()) {
-            return left.complete() ? left : right;
-        }
         var byDate = left.reportedAt().compareTo(right.reportedAt());
         if (byDate != 0) {
             return byDate < 0 ? left : right;
@@ -32,9 +29,6 @@ public final class DuplicatePriority {
     }
 
     public static String basis(Side winner, Side other) {
-        if (winner.complete() || other.complete()) {
-            return "complete";
-        }
         if (!winner.reportedAt().equals(other.reportedAt())) {
             return "received";
         }

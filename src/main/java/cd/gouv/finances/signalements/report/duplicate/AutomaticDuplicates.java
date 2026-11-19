@@ -16,6 +16,7 @@ public class AutomaticDuplicates {
     private final PrepareDuplicateAlerts priorities;
     private final AssessmentDecision decisions;
     private final cd.gouv.finances.signalements.report.validation.AnalysisReplay replay;
+    private final cd.gouv.finances.signalements.report.validation.FixedRewards rewards;
 
     // Caller holds the beneficiary lock, shared with import, assessment and payment commands.
     public void execute(UUID reportId) {
@@ -62,6 +63,7 @@ public class AutomaticDuplicates {
                     """, ValidationRules.AUTOMATION, winner, left, right, ValidationRules.AUTOMATION, winner);
             if (changed > 0) { affected.add(id); affected.add(winner); }
         }
+        rewards.releaseDuplicateReservations(group);
         // Closed duplicate siblings must not leave the retained dossier waiting on a duplicate check.
         for (var id : affected) {
             if (id.equals(reportId)) continue; // The caller applies its own decision after this screening.
@@ -91,8 +93,7 @@ public class AutomaticDuplicates {
                     a.document_date::text as issued,
                     case when trim(a.extracted->>'totalAmount') ~ '^[0-9]+([.,][0-9]{1,2})?$'
                       then replace(trim(a.extracted->>'totalAmount'),',','.')::numeric end as amount,
-                    upper(trim(a.extracted->>'currency')) as currency,
-                    nullif(lower(trim(a.extracted->>'readCode')),'') as code
+                    upper(trim(a.extracted->>'currency')) as currency
                   from app.report_assessment a join app.report r on r.id=a.report_id
                   join lateral (select d.status,d.quality from app.document_reading d
                     where d.document_reference=cast(a.photo_id as text)
@@ -106,7 +107,6 @@ public class AutomaticDuplicates {
                 select other.report_id from invoices mine join invoices other
                   on mine.nif=other.nif and mine.number=other.number and mine.issued=other.issued
                     and mine.amount=other.amount and mine.currency=other.currency
-                    and mine.code is not distinct from other.code
                   where mine.report_id=? and mine.nif<>'' and mine.number<>'' and mine.issued<>''
                     and mine.amount is not null and mine.currency ~ '^[A-Z]{3}$'
                     and mine.issued ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'

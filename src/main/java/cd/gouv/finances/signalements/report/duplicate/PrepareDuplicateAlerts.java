@@ -53,6 +53,7 @@ public class PrepareDuplicateAlerts {
     private void open(UUID reportId, DuplicateSignals.Match match, Set<String> seen) {
         var left = reportId.compareTo(match.otherReportId()) < 0 ? reportId : match.otherReportId();
         var right = reportId.compareTo(match.otherReportId()) < 0 ? match.otherReportId() : reportId;
+        if (duplicateLookup.alreadyConfirmedTogether(left,right)) return;
         if (!seen.add(left + "|" + right + "|" + match.criterion())) {
             return;
         }

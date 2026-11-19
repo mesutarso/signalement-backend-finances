@@ -198,7 +198,7 @@ public class ApiExceptionHandler {
             case "photo-request-reason" -> "Précisez les éléments à reprendre sur la photo.";
             case "photo-request-required" -> "Préparez la demande depuis la facture concernée.";
             case "photo-request-closed" -> "Cette demande n’est plus en attente d’une photo.";
-            case "photo-link-owner" -> "La pièce doit provenir d’un signalement du même déclarant et rester disponible pour ce dossier.";
+            case "photo-link-owner" -> "Choisissez un signalement plus récent du même déclarant, encore disponible pour ce dossier.";
             case "sms-state" -> "Ce message est déjà transmis, en cours d’envoi ou à confirmer.";
             case "sms-absent" -> "Message introuvable.";
             case "sms-test-disabled" -> "Les essais SMS sont désactivés.";

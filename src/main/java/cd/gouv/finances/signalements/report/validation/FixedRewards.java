@@ -29,6 +29,7 @@ public class FixedRewards {
                       select 1 from app.payment_statement_line l join app.payment_attempt a on a.line_id = l.id
                       where l.prime_id = p.id and a.result = 'paid' and a.reference_code not like 'SIM-%')
                     """, actorId, now, reportId);
+            releaseDuplicateReservations(java.util.List.of(reportId));
             return;
         }
         var declarant = jdbc.queryForObject("select nullif(btrim(reporter_user_id), '') from app.report where id = ?", String.class, reportId);
@@ -43,11 +44,29 @@ public class FixedRewards {
                 """, UUID.randomUUID(), declarant, phone, current.amount(), actorId, now, now, reportId, current.id(), invoiceKey(reportId));
         // Keep the original amount and setting when the same report is validated again.
         jdbc.update("""
-                update app.prime p set status = 'proposed', phone = ?, actor_id = ?, updated_at = ?
+                update app.prime p set status = 'proposed', phone = ?, actor_id = ?, updated_at = ?, invoice_key = ?
                 where report_id = ? and status = 'withdrawn' and not exists (
                   select 1 from app.payment_statement_line l join app.payment_attempt a on a.line_id = l.id
                   where l.prime_id = p.id and a.result = 'paid' and a.reference_code not like 'SIM-%')
-                """, phone, actorId, now, reportId);
+                """, phone, actorId, now, invoiceKey(reportId), reportId);
+    }
+
+    /** Release only unpaid claims that are now confirmed losing duplicates; retain every reward row. */
+    public void releaseDuplicateReservations(java.util.List<UUID> reportIds) {
+        if (reportIds.isEmpty()) return;
+        var marks=String.join(",",reportIds.stream().map(id->"?").toList());
+        var arguments=new java.util.ArrayList<Object>();
+        arguments.add(ValidationRules.AUTOMATION); arguments.addAll(reportIds);
+        jdbc.update("""
+                update app.prime p set status='withdrawn',invoice_key=null,actor_id=?,updated_at=current_timestamp
+                where p.report_id in (%s) and p.invoice_key is not null
+                  and exists(select 1 from app.duplicate_alert d where d.status='confirmed'
+                    and (d.report_id=p.report_id or d.other_report_id=p.report_id) and d.priority_report_id<>p.report_id)
+                  and not exists(select 1 from app.payment_statement_line l join app.payment_attempt a on a.line_id=l.id
+                    where l.prime_id=p.id and a.result='paid' and a.reference_code not like 'SIM-%%')
+                  and not exists(select 1 from app.payment_statement_line l join app.payment_transfer t on t.line_id=l.id
+                    where l.prime_id=p.id and t.environment='production' and t.state in ('submitting','pending','unknown'))
+                """.formatted(marks),arguments.toArray());
     }
 
     public boolean alreadyRewarded(UUID reportId) {

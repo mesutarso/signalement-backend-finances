@@ -20,5 +20,10 @@ public record DuplicateAlertResponse(
         String priorityIdentifier,
         LocalDateTime priorityReportedAt,
         String priorityBasis,
-        boolean currentKeepsPriority) {
+        boolean currentKeepsPriority,
+        String currentReporterName,
+        String currentReporterPhone,
+        String otherReporterName,
+        String otherReporterPhone,
+        Boolean differentDeclarants) {
 }

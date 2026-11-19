@@ -23,7 +23,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'http://127.0.0.1:18081'
 PHOTO = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=')
-REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY', 'IDENTITY', 'NIF-ONLY', 'AUTO-DUP-1', 'AUTO-DUP-2', 'REPLACEMENT', 'REPLACEMENT2']
+REFERENCES = ['VALID-A', 'VALID-B', 'VALID-C', 'CONFORM', 'DOUBT', 'CONCURRENT', 'DUP-1', 'DUP-2', 'UI', 'UNREADABLE', 'MIXED', 'FISCAL', 'REPLAY', 'IDENTITY', 'NIF-ONLY', 'AUTO-DUP-1', 'AUTO-DUP-2', 'REPLACEMENT', 'REPLACEMENT2', 'CROSS-EARLY', 'CROSS-LATE', 'CROSS-LAST', 'REVERSE-LATE', 'OLDER-PHOTO']
 OCR_CALLS = []
 CHECKS = []
 SMS_CALLS = []
@@ -46,12 +46,14 @@ class Source(BaseHTTPRequestHandler):
             size = int(query.get('PageSize', ['10'])[0])
             fixtures = [dict(uid=ref, title='Facture de recette ' + ref, probDesc='Achat synthétique pour validation',
                 reportedDateTime=f'2026-11-11T10:{i:02}:00', invoiceProblemImages=[dict(uid=ref + '-photo')],
-                name='Déclarant de recette', email='recette@example.invalid', phone=f'09900000{i:02}', uidUser='person-' + ref)
+                name='Déclarant ' + ref, email='recette@example.invalid', phone=f'09900000{i:02}', uidUser='person-' + ref)
                 for i, ref in enumerate(REFERENCES)]
             for fixture in fixtures:
-                if fixture['uid'] in ['UNREADABLE','REPLACEMENT','REPLACEMENT2']:
+                if fixture['uid'] in ['UNREADABLE','REPLACEMENT','REPLACEMENT2','OLDER-PHOTO']:
                     fixture['uidUser']='person-UNREADABLE'
                     fixture['phone']='0827243119'
+                if fixture['uid']=='OLDER-PHOTO': fixture['reportedDateTime']='2026-11-11T10:08:30'
+                if fixture['uid']=='REVERSE-EARLY': fixture['reportedDateTime']='2026-11-11T10:21:30'
                 if fixture['uid'] == 'MIXED':
                     fixture['invoiceProblemImages'].append(dict(uid='MIXED-UNREADABLE-photo'))
             self.reply(dict(problems=fixtures[(page-1)*size:page*size], hasNext=page*size < len(fixtures)))
@@ -83,9 +85,9 @@ class Source(BaseHTTPRequestHandler):
             self.reply(dict(vendeur=None, nif=None, date=None, montant=None, numero=None, code=None,
                 articles=[], confiance=0.99))
             return
-        invoice = 'DUP' if reference.startswith('DUP-') else reference
+        invoice = 'REVERSE' if reference.startswith('REVERSE-') else 'CROSS' if reference.startswith('CROSS-') else 'DUP' if reference.startswith('DUP-') else reference
         self.reply(dict(vendeur=None if reference in ['IDENTITY','NIF-ONLY'] else 'Établissement de recette ' + invoice, nif=None if reference == 'IDENTITY' else 'NIF-' + invoice, date='2026-11-11' if reference == 'DUP-2' else '2026-11-10',
-            montant='116000', numero='FACT-' + invoice, code='CODE-' + invoice, devise='CDF', montant_ht='100000',
+            montant='116000', numero='FACT-' + invoice, code=None if reference=='CROSS-LATE' else 'CODE-' + invoice, devise='CDF', montant_ht='100000',
             tva='0' if reference == 'REPLAY' and OCR_CALLS.count(reference) > 1 else '16000', taux_tva='16', montant_paye='116000', code_def='DEF-DEMO' if reference == 'UI' else None, numero_def='DEVICE-DEMO' if reference == 'UI' else None,
             articles=[dict(designation='Article synthétique', montant='100000')], confiance=0.99))
 
@@ -145,6 +147,42 @@ def run(cfg, sql):
                     dict(revision=a['revision'],vatStatus=status,vatEvidence='Référentiel fiscal synthétique, contrôle du 19/11/2026'))
     check('Import and extraction finish without fiscal API access',len(OCR_CALLS)==len(REFERENCES)+1)
     check('Unknown fiscal status never earns a reward',all(view(ref)['reward'] is None for ref in REFERENCES))
+    first_id=by_ref['CROSS-EARLY']['id']
+    check('Different users reporting the same invoice keep the first submission',
+          view('CROSS-EARLY')['assessment']['state']=='doubt'
+          and all(view(ref)['assessment']['state']=='rejected' for ref in ['CROSS-LATE','CROSS-LAST']))
+    tracked=call(agent,'GET',f"/api/reports/{by_ref['CROSS-LATE']['id']}")['duplicates']
+    pair=next(item for item in tracked if item['otherReportId']==first_id and item['status']=='confirmed')
+    check('Duplicate details track both declarants and the original priority',pair['differentDeclarants'] is True
+          and pair['currentReporterName']=='Déclarant CROSS-LATE' and pair['otherReporterName']=='Déclarant CROSS-EARLY'
+          and pair['priorityReportId']==first_id and not pair['currentKeepsPriority'])
+    hidden=call(auditor,'GET',f"/api/reports/{by_ref['CROSS-LATE']['id']}")['duplicates']
+    check('Auditors cannot read declarant identities through duplicate details',all(item['currentReporterName'] is None
+          and item['currentReporterPhone'] is None and item['otherReporterName'] is None
+          and item['otherReporterPhone'] is None and item['differentDeclarants'] is None for item in hidden))
+    correct('CROSS-EARLY',normalization='non-normalized')
+    first_reward=fiscal('CROSS-EARLY','registered')
+    check('Only the earliest declarant earns a reward for the shared invoice',first_reward['reward'] is not None
+          and all(view(ref)['reward'] is None for ref in ['CROSS-LATE','CROSS-LAST']))
+    late=view('CROSS-LATE')['assessment']
+    call(admin,'POST',f"/api/reports/{by_ref['CROSS-LATE']['id']}/assessment/fiscal-status",
+         dict(revision=late['revision'],vatStatus='registered',vatEvidence='Test refus doublon'),409)
+
+    correct('REVERSE-LATE',normalization='non-normalized')
+    later_reward=fiscal('REVERSE-LATE','registered')['reward']
+    check('A sole later-submitted invoice can initially receive an unpaid proposed reward',later_reward is not None)
+    REFERENCES.append('REVERSE-EARLY')
+    call(admin,'POST','/api/report-imports',dict(start='2026-11-01',end='2026-11-30'),202)
+    def imported_earlier():
+        data=call(admin,'GET','/api/reports?validation=all&size=100')
+        return next((row for row in data['reports'] if row['identifier']=='REVERSE-EARLY'),None)
+    early=until(imported_earlier);by_ref['REVERSE-EARLY']=early
+    until(lambda:view('REVERSE-EARLY')['assessment']['jobState']=='done' and view('REVERSE-LATE')['assessment']['state']=='rejected')
+    correct('REVERSE-EARLY',normalization='non-normalized')
+    earlier_reward=fiscal('REVERSE-EARLY','registered')['reward']
+    check('An earlier historical claim imported later takes priority and releases only the unpaid later reward',
+          earlier_reward is not None and view('REVERSE-LATE')['reward']['status']=='withdrawn'
+          and sql("select count(*) from app.prime where status<>'withdrawn' and report_id in ('"+early['id']+"','"+by_ref['REVERSE-LATE']['id']+"');")=='1')
     extracted=view('UI')['assessment']['extracted']
     check('Invoice number, amounts and DEF references are extracted',extracted['documentNumber']=='FACT-UI'
           and extracted['totalAmount']=='116000' and extracted['defCode']=='DEF-DEMO' and extracted['defNumber']=='DEVICE-DEMO')
@@ -195,6 +233,8 @@ def run(cfg, sql):
           and SMS_CALLS[0]['tel']=='243827243119' and request['referenceCode'] in SMS_CALLS[0]['message'] and len(SMS_CALLS[0]['message'])<=100)
     link=f'/api/reports/{uid}/photo-requests/{rid}/links'
     call(agent,'POST',link,dict(referenceCode='UI'),409)
+    call(agent,'POST',link,dict(referenceCode='OLDER-PHOTO'),409)
+    check('An older submission cannot be relabeled as a later replacement',True)
     check('Another declarant cannot supply the replacement',sql(f"select status from app.photo_request where id='{rid}';")=='open')
     linked=call(agent,'POST',link,dict(referenceCode='REPLACEMENT'))
     until(lambda:view('UNREADABLE')['assessment']['jobState']=='done')

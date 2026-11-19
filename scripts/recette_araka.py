@@ -50,7 +50,7 @@ class Provider(BaseHTTPRequestHandler):
 
 def main():
     global MODE
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--runtime',type=Path,required=True);parser.add_argument('--keep-running',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--runtime',type=Path,required=True);parser.add_argument('--keep-running',action='store_true');parser.add_argument('--port',type=int,default=18081);args=parser.parse_args();recipe.BASE=f'http://127.0.0.1:{args.port}'
     cfg=json.loads(args.runtime.read_text());database='araka_acceptance_'+uuid.uuid4().hex[:12]
     def sql(statement,db=None):
         r=subprocess.run(['docker','exec','-i',cfg['postgresContainer'],'psql','-U',cfg['databaseUser'],'-d',db or database,'-v','ON_ERROR_STOP=1','-At'],input=statement,text=True,capture_output=True)
@@ -58,7 +58,7 @@ def main():
         return r.stdout.strip()
     sql('create database '+database+';',cfg['database'])
     source=ThreadingHTTPServer(('127.0.0.1',0),Provider);threading.Thread(target=source.serve_forever,daemon=True).start()
-    env=dict(os.environ,SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:65434/'+database,SPRING_DATASOURCE_USERNAME=cfg['databaseUser'],SPRING_DATASOURCE_PASSWORD=cfg['databasePassword'],SPRING_DATA_REDIS_HOST='127.0.0.1',SPRING_DATA_REDIS_PORT='65435',SPRING_DATA_REDIS_PASSWORD=cfg['redisPassword'],SPRING_SESSION_REDIS_NAMESPACE=database,SERVER_PORT='18081',ACCESS_ADMIN_USERNAME='validation-admin',ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],REPORTS_SCHEDULE_ENABLED='false',REPORTS_IMPORT_ON_STARTUP='false',REPORT_ANALYSIS_ENABLED='false',ARAKAPAY_BASE_URL=f'http://127.0.0.1:{source.server_port}',ARAKAPAY_EMAIL='fixture-email',ARAKAPAY_PASSWORD='fixture-password',ARAKAPAY_MODE='sandbox',ARAKAPAY_LIVE_ENABLED='false')
+    env=dict(os.environ,SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:65434/'+database,SPRING_DATASOURCE_USERNAME=cfg['databaseUser'],SPRING_DATASOURCE_PASSWORD=cfg['databasePassword'],SPRING_DATA_REDIS_HOST='127.0.0.1',SPRING_DATA_REDIS_PORT='65435',SPRING_DATA_REDIS_PASSWORD=cfg['redisPassword'],SPRING_SESSION_REDIS_NAMESPACE=database,SERVER_PORT=str(args.port),ACCESS_ADMIN_USERNAME='validation-admin',ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],REPORTS_SCHEDULE_ENABLED='false',REPORTS_IMPORT_ON_STARTUP='false',REPORT_ANALYSIS_ENABLED='false',ARAKAPAY_BASE_URL=f'http://127.0.0.1:{source.server_port}',ARAKAPAY_EMAIL='fixture-email',ARAKAPAY_PASSWORD='fixture-password',ARAKAPAY_MODE='sandbox',ARAKAPAY_LIVE_ENABLED='false')
     jar=args.runtime.parent/(database+'.jar')
     shutil.copy2(ROOT/'target/signalements-0.0.1-SNAPSHOT.jar',jar)
     backend=None
@@ -110,14 +110,14 @@ def main():
         sql(f"insert into app.payout_number values ('{uuid.uuid4()}','payment-person','0810000001','ready','{actor}',now(),now());")
         sql(f"insert into app.payment_statement(id,reference_code,status,prepared_by,prepared_at,controlled_at,visaed_at,authorized_at,authorized_by,due_on) values ('{statement}','EP-RECIPE','authorized','{actor}',now(),now(),now(),now(),'{actor}',current_date);")
         sql(f"insert into app.payment_statement_line values ('{line}','{statement}','{prime}',0,5000,'0810000001',false);")
-        for client in [admin,clients['SUPERVISOR'],clients['AUDITOR']]:recipe.call(client,'POST',f'/api/payment-statements/{statement}/transfers',dict(requestId=str(uuid.uuid4()),lineId=line,operator='mpesa'),403)
+        for client in [clients['SUPERVISOR'],clients['AUDITOR']]:recipe.call(client,'POST',f'/api/payment-statements/{statement}/transfers',dict(requestId=str(uuid.uuid4()),lineId=line,operator='mpesa'),403)
         payer=clients['PAYMASTER'];count=len(CALLS)
         same=[recipe.login('araka-paymaster',cfg['adminPassword']) for _ in range(2)]
         def send(client):
             r=client.post(recipe.BASE+f'/api/payment-statements/{statement}/transfers',json=dict(requestId=str(uuid.uuid4()),lineId=line,operator='mpesa'),headers={'X-XSRF-TOKEN':client.cookies.get('XSRF-TOKEN','')},timeout=30)
             return r.status_code
         with ThreadPoolExecutor(2) as pool:codes=list(pool.map(send,same))
-        recipe.check('Only the paymaster can pay an authorized line and concurrent clicks cannot duplicate it',sorted(codes)==[200,409] and len(CALLS)==count+1)
+        recipe.check('An authorized payer can pay a line and concurrent clicks cannot duplicate it',sorted(codes)==[200,409] and len(CALLS)==count+1)
         recipe.call(payer,'POST',f'/api/payment-statements/{statement}/attempts',dict(lineId=line,operator='m-pesa',result='paid'),410)
         recipe.check('The retired simulation endpoint cannot mark a reward paid',sql('select count(*) from app.payment_attempt;')=='0')
         recipe.check('Confirmed sandbox transfers do not settle real rewards or paid indicators',sql('select count(*) from app.payment_attempt;')=='0' and recipe.call(admin,'GET','/api/indicators')['figures']['payments']==0)

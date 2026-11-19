@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /** Invoice screening and fiscal rules. Unknown evidence never becomes a positive finding. */
 public final class ValidationRules {
-    public static final String VERSION = "invoice-completion-2026-11-19";
+    public static final String VERSION = "invoice-first-2026-11-19";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     private ValidationRules() { }

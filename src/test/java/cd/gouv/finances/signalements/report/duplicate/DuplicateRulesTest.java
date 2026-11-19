@@ -19,7 +19,16 @@ class DuplicateRulesTest {
         var winner = DuplicatePriority.choose(late, early);
 
         assertThat(winner).isEqualTo(early);
-        assertThat(DuplicatePriority.basis(winner, late)).isEqualTo("complete");
+        assertThat(DuplicatePriority.basis(winner, late)).isEqualTo("received");
+    }
+
+    @Test
+    void anEarlierIncompleteReportKeepsPriorityOverALaterCompleteReport() {
+        var early=new DuplicatePriority.Side(UUID.randomUUID(),"early",LocalDateTime.parse("2026-11-19T10:00:00"),"b",false);
+        var late=new DuplicatePriority.Side(UUID.randomUUID(),"late",LocalDateTime.parse("2026-11-19T10:01:00"),"a",true);
+        assertThat(DuplicatePriority.choose(late,early)).isEqualTo(early);
+        assertThat(DuplicatePriority.choose(early,late)).isEqualTo(early);
+        assertThat(DuplicatePriority.basis(early,late)).isEqualTo("received");
     }
 
     @Test

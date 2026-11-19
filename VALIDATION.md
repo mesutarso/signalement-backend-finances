@@ -19,7 +19,7 @@ Les références DEF détectées sont présentées comme indices, sans inventer 
 
 ## Informations incomplètes et nouvelle photo
 
-La règle `invoice-completion-2026-11-19` conserve les dossiers illisibles ou incomplets dans `doubt`, affichés « À compléter ». Le précalcul fournit `missingFields` (photo lisible, NIF, numéro, date). L’absence d’une référence DEF ne suffit pas à prouver une facture non normalisée. Un incident du fournisseur de lecture n’est pas une preuve d’illisibilité.
+La règle `invoice-first-2026-11-19` conserve les dossiers illisibles ou incomplets dans `doubt`, affichés « À compléter ». Le précalcul fournit `missingFields` (photo lisible, NIF, numéro, date). L’absence d’une référence DEF ne suffit pas à prouver une facture non normalisée. Un incident du fournisseur de lecture n’est pas une preuve d’illisibilité.
 
 L’agent peut corriger le NIF, le numéro, la date et la normalisation depuis la fiche. Une correction du NIF remet la confirmation fiscale à vérifier. L’assujettissement exige une référence de vérification ; l’auteur et la date sont conservés.
 
@@ -78,3 +78,9 @@ Recette locale du 15 novembre 2026 : 168 tests Java recensés, dont 165 réussis
 ## Recette du parcours de complétion
 
 `./mvnw clean verify` couvre les tests Java ; les variables `VALIDATION_JDBC_URL`, `VALIDATION_DB_USER`, `VALIDATION_DB_PASSWORD` activent les tests sur des bases PostgreSQL éphémères. `scripts/recette_completion.py --runtime /chemin/prive/runtime.json --keep-running` vérifie le parcours HTTP avec FACNO, OCR et SMS locaux simulés. Aucun SMS, import ou paiement réel n’est exécuté. Le fichier privé et les conteneurs suivent le format décrit par le script de recette de validation.
+
+## Plusieurs déclarants pour la même facture
+
+La priorité revient au signalement le plus ancien selon la date source, même si la lecture d’un signalement ultérieur est plus complète. Une égalité de dates est départagée de manière stable par référence puis identifiant. Les doublons exacts sont écartés automatiquement ; les rapprochements incertains restent à confirmer. Une facture identifiée par NIF, numéro, date, montant et devise reste rapprochée même si un code de vérification n’a pas été lu sur une des photos. Le premier dossier est le seul qui peut ouvrir une récompense.
+
+La fiche de doublon affiche les deux déclarants, les références, les heures de réception et le dossier conservé. Ces identités restent réservées à `report.identity` : un auditeur ne les récupère pas par cette réponse. Une confirmation existante empêche de rouvrir une nouvelle alerte simplement parce qu’un autre indice est détecté pour les mêmes dossiers.

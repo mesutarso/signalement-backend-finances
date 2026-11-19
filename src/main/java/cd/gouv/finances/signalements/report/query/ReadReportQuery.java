@@ -102,10 +102,10 @@ public class ReadReportQuery {
                     return delivery==null ? response : response.withMessage(delivery.messageId(),delivery.status(),delivery.body()); })
                 .toList();
         return ReportMapper.toResponse(
-                report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names), reviews);
+                report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names, includeReporter), reviews);
     }
 
-    private List<DuplicateAlertResponse> duplicates(UUID id, List<DuplicateAlert> alerts, Map<UUID, String> names) {
+    private List<DuplicateAlertResponse> duplicates(UUID id, List<DuplicateAlert> alerts, Map<UUID, String> names, boolean includeReporter) {
         var timingIds = new ArrayList<UUID>();
         timingIds.add(id);
         for (var alert : alerts) {
@@ -118,6 +118,16 @@ public class ReadReportQuery {
         var timings = duplicateLookup.timings(timingIds).stream()
                 .collect(Collectors.toMap(DuplicateLookup.Timing::id, timing -> timing, (left, right) -> left));
         var complete = new HashSet<>(duplicateLookup.completeReports(timingIds));
+        var declarants = new java.util.HashMap<UUID, Declarant>();
+        if (includeReporter && !alerts.isEmpty()) {
+            var ids = timingIds.stream().distinct().toList();
+            var marks = String.join(",", ids.stream().map(value -> "?").toList());
+            jdbc.query("select id,reporter_name,reporter_phone,reporter_user_id from app.report where id in (" + marks + ")",
+                    (org.springframework.jdbc.core.RowCallbackHandler) row -> {
+                        var declarant = new Declarant(row.getObject(1,UUID.class),row.getString(2),row.getString(3),row.getString(4));
+                        declarants.put(declarant.id(),declarant);
+                    },ids.toArray());
+        }
         return alerts.stream().map(alert -> {
             var otherId = alert.getReportId().equals(id) ? alert.getOtherReportId() : alert.getReportId();
             var other = timings.get(otherId);
@@ -131,6 +141,8 @@ public class ReadReportQuery {
                 var loser = winner == currentSide ? otherSide : currentSide;
                 basis = DuplicatePriority.basis(winner, loser);
             }
+            var currentDeclarant=declarants.get(id);
+            var otherDeclarant=declarants.get(otherId);
             return new DuplicateAlertResponse(
                     alert.getId(),
                     otherId,
@@ -147,8 +159,24 @@ public class ReadReportQuery {
                     priority == null ? null : priority.identifier(),
                     priority == null ? null : priority.reportedAt(),
                     basis,
-                    id.equals(alert.getPriorityReportId()));
+                    id.equals(alert.getPriorityReportId()),
+                    currentDeclarant==null?null:currentDeclarant.name(),
+                    currentDeclarant==null?null:currentDeclarant.phone(),
+                    otherDeclarant==null?null:otherDeclarant.name(),
+                    otherDeclarant==null?null:otherDeclarant.phone(),
+                    different(currentDeclarant,otherDeclarant));
         }).toList();
+    }
+
+    private record Declarant(UUID id, String name, String phone, String userId) { }
+
+    private static Boolean different(Declarant first, Declarant second) {
+        if (first==null || second==null) return null;
+        if (first.userId()!=null && !first.userId().isBlank() && second.userId()!=null && !second.userId().isBlank())
+            return !first.userId().trim().equals(second.userId().trim());
+        var firstPhone=cd.gouv.finances.signalements.sms.UnikronProperties.cleanPhone(first.phone());
+        var secondPhone=cd.gouv.finances.signalements.sms.UnikronProperties.cleanPhone(second.phone());
+        return firstPhone.isBlank() || secondPhone.isBlank() ? null : !firstPhone.equals(secondPhone);
     }
 
     private static DuplicatePriority.Side side(DuplicateLookup.Timing timing, java.util.Set<UUID> complete) {

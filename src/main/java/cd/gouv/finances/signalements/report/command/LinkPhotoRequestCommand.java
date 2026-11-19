@@ -48,7 +48,7 @@ public class LinkPhotoRequestCommand {
                     and not exists(select 1 from app.prime pr join app.payment_statement_line l on l.prime_id=pr.id
                       join app.payment_attempt pay on pay.line_id=l.id where pr.report_id in (target.id,incoming.id)
                       and pay.result='paid' and pay.reference_code not like 'SIM-%')
-                    and target.source=incoming.source and (
+                    and incoming.reported_at>=target.reported_at and target.source=incoming.source and (
                       (nullif(trim(target.reporter_user_id),'') is not null and target.reporter_user_id=incoming.reporter_user_id)
                       or ((nullif(trim(target.reporter_user_id),'') is null or nullif(trim(incoming.reporter_user_id),'') is null)
                         and regexp_replace(coalesce(target.reporter_phone,''),'[^0-9]','','g')<>''

@@ -57,7 +57,7 @@ class ScreeningMigrationTest {
         assertThat(reason(jdbc,unreadable)).isEqualTo("unreadable");
 
         var priorities=new PrepareDuplicateAlerts(null,null,new DuplicateLookup(jdbc),null,Clock.systemUTC());
-        var duplicates=new AutomaticDuplicates(jdbc,priorities,decision,new AnalysisReplay(""));
+        var duplicates=new AutomaticDuplicates(jdbc,priorities,decision,new AnalysisReplay(""),rewards);
         duplicates.execute(third);
         duplicates.prepareUniqueness(third); decision.apply(third,"automatic",null);
         assertThat(store.read(first).state()).isEqualTo("doubt");

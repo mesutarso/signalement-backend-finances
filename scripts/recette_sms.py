@@ -41,7 +41,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime',type=Path,required=True)
     parser.add_argument('--keep-running',action='store_true')
+    parser.add_argument('--port',type=int,default=18081)
     args=parser.parse_args()
+    recipe.BASE=f'http://127.0.0.1:{args.port}'
     cfg=json.loads(args.runtime.read_text())
     database='sms_acceptance_'+uuid.uuid4().hex[:12]
     def sql(statement,db=None):
@@ -54,7 +56,7 @@ def main():
     env=dict(os.environ,SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:65434/'+database,
         SPRING_DATASOURCE_USERNAME=cfg['databaseUser'],SPRING_DATASOURCE_PASSWORD=cfg['databasePassword'],
         SPRING_DATA_REDIS_HOST='127.0.0.1',SPRING_DATA_REDIS_PORT='65435',SPRING_DATA_REDIS_PASSWORD=cfg['redisPassword'],
-        SPRING_SESSION_REDIS_NAMESPACE=database,SERVER_PORT='18081',ACCESS_ADMIN_USERNAME='validation-admin',ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
+        SPRING_SESSION_REDIS_NAMESPACE=database,SERVER_PORT=str(args.port),ACCESS_ADMIN_USERNAME='validation-admin',ACCESS_ADMIN_PASSWORD=cfg['adminPassword'],
         REPORTS_SCHEDULE_ENABLED='false',REPORTS_IMPORT_ON_STARTUP='false',REPORT_ANALYSIS_ENABLED='false',
         UNIKRON_ENDPOINT=f'http://127.0.0.1:{source.server_port}/sms',UNIKRON_USER_NAME='fixture-user',UNIKRON_APP_KEY='fixture-key',
         UNIKRON_SENDER_ID='Jabari',UNIKRON_MODE='development')

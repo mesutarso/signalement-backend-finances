@@ -55,6 +55,15 @@ public class DuplicateLookup {
                 (row, number) -> new FieldRow(row.getObject(1, UUID.class), row.getString(2), row.getString(3)));
     }
 
+    public boolean alreadyConfirmedTogether(UUID left, UUID right) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                select exists(select 1 from app.duplicate_alert x join app.duplicate_alert y
+                  on x.priority_report_id=y.priority_report_id
+                  where x.status='confirmed' and y.status='confirmed'
+                    and (x.report_id=? or x.other_report_id=?) and (y.report_id=? or y.other_report_id=?))
+                """,Boolean.class,left,left,right,right));
+    }
+
     public UUID replacementPriority(UUID left, UUID right) {
         var matches=jdbc.query("""
                 select report_id from app.photo_request where status='linked' and
