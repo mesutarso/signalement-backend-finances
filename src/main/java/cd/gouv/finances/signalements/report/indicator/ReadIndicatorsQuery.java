@@ -19,7 +19,8 @@ public class ReadIndicatorsQuery {
 
     private static final ZoneId KINSHASA = ZoneId.of("Africa/Kinshasa");
     private static final Set<String> FINDINGS = Set.of(
-            "fake-invoice", "missing-transmission", "understated", "non-normalized", "refusal", "unknown-seller", "nonconform", "vat-unregistered");
+            "fake-invoice", "missing-transmission", "understated", "non-normalized", "refusal", "unknown-seller", "nonconform", "vat-unregistered",
+            "fake-normalization", "vat-without-normalization", "registered-non-normalized");
 
     private final JdbcTemplate jdbc;
     private final Clock clock;

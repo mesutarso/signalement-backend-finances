@@ -66,7 +66,7 @@ public class AssessmentEvidence {
         }
         if (requested != null) return requested;
         if (photos.size() == 1) return photos.getFirst().id();
-        // Choose the first successfully read invoice with a NIF, without asking the agent to select a piece.
+        // Prefer a readable invoice with VAT, then a readable invoice or a partial reading with a NIF.
         var replacements = jdbc.query("""
                 select id from app.report_photo where report_id=? and replacement_request_id=(
                   select id from app.photo_request where report_id=? and status='linked'
@@ -75,10 +75,22 @@ public class AssessmentEvidence {
                 (r,n)->r.getObject(1,UUID.class),reportId,reportId);
         var candidates = replacements.isEmpty() ? photos : photos.stream().filter(p->replacements.contains(p.id())).toList();
         var chosen = candidates.stream().map(photo -> latest(photo.id()))
-                .filter(reading -> reading != null && "READ".equals(reading.status())
-                        && !blank(reading.fields().get("sellerTaxId")))
-                .map(Reading::photoId).findFirst().orElse(null);
+                .filter(reading -> reading != null && "READ".equals(reading.status()))
+                .min(java.util.Comparator.comparingInt(AssessmentEvidence::readingPriority))
+                .map(Reading::photoId).orElse(null);
         return chosen != null ? chosen : candidates.isEmpty() ? null : candidates.getFirst().id();
+    }
+
+    private static int readingPriority(Reading reading) {
+        if ("READABLE".equals(reading.quality())) {
+            return "yes".equals(charged(reading.fields().get("vatAmount"))) ? 0 : 1;
+        }
+        if ("PARTIAL".equals(reading.quality())) return blank(reading.fields().get("sellerTaxId")) ? 3 : 2;
+        return 4;
+    }
+
+    public static boolean hasNormalizationMarkers(Map<String, String> fields) {
+        return !blank(fields.get("readCode")) || !blank(fields.get("defCode")) || !blank(fields.get("defNumber"));
     }
 
     public boolean taxIdMissingAfterReading(UUID reportId, UUID selectedPhotoId) {

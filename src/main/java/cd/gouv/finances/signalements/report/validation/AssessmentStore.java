@@ -32,7 +32,7 @@ public class AssessmentStore {
                            Instant updatedAt) { }
     public record Reward(UUID id, int amount, String status, Instant recordedAt) { }
     public record View(Snapshot assessment, Reward reward, boolean fiscalApiAvailable,
-                       PrecalculatedAssessment precalculation) { }
+                       PrecalculatedAssessment precalculation, String finding) { }
 
     public Snapshot read(UUID reportId) { return read(reportId, false); }
     public Snapshot lock(UUID reportId) { return read(reportId, true); }
@@ -50,8 +50,12 @@ public class AssessmentStore {
         var snapshot = read(reportId);
         var rewards = jdbc.query("select id, amount, status, recorded_at from app.prime where report_id = ?",
                 (r, n) -> new Reward(r.getObject(1, UUID.class), r.getInt(2), r.getString(3), r.getTimestamp(4).toInstant()), reportId);
+        var findings = "validated".equals(snapshot.state()) ? jdbc.queryForList("""
+                select finding from app.qualification where report_id = ? and decision = 'confirm'
+                order by recorded_at desc, id desc limit 1
+                """, String.class, reportId) : List.<String>of();
         return new View(snapshot, rewards.isEmpty() ? null : rewards.getFirst(), false,
-                evaluation.calculate(snapshot).precalculation());
+                evaluation.calculate(snapshot).precalculation(), findings.isEmpty() ? null : findings.getFirst());
     }
 
     public String json(Object value) { return mapper.writeValueAsString(value); }

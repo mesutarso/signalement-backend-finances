@@ -1,80 +1,63 @@
 package cd.gouv.finances.signalements.report.validation;
 
+import java.util.Map;
 import java.util.UUID;
 
-/** Invoice screening and fiscal rules. Unknown evidence never becomes a positive finding. */
 public final class ValidationRules {
-    public static final String VERSION = "invoice-first-2026-11-19";
+    public static final String VERSION = "invoice-review-2026-11-23";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
+
+    public static final String VAT_WITHOUT_NORMALIZATION = "vat-without-normalization";
+    public static final String DUPLICATE_MESSAGE = "Facture déjà signalée.";
+    public static final String UNREADABLE_MESSAGE = "Veuillez refaire votre signalement avec une photo plus lisible.";
+    static final Map<String, String> FINDINGS = Map.of(
+            "fake-normalization", "Facture faussement normalisée",
+            VAT_WITHOUT_NORMALIZATION, "TVA collectée sans facture normalisée",
+            "registered-non-normalized", "Entreprise assujettie ne délivrant pas de facture normalisée",
+            "non-normalized", "Facture non normalisée");
+    static final Map<String, String> REJECTIONS = Map.of(
+            "normalized", "Facture déjà normalisée.",
+            "unregistered", "Entreprise non assujettie à la TVA (non éligible).",
+            "unreadable", UNREADABLE_MESSAGE,
+            "duplicate", DUPLICATE_MESSAGE);
 
     private ValidationRules() { }
 
-    public record Facts(String vatStatus, String normalization, String purchaseConformity,
-                        String vatCharged, String uniqueness, boolean documentPresent,
-                        boolean taxIdPresent, boolean unresolvedDuplicates) { }
+    public record Facts(String vatStatus, String normalization, String vatCharged, String uniqueness,
+                        boolean documentPresent, boolean taxIdPresent, boolean unresolvedDuplicates) { }
     public record Decision(String state, String finding, String reason) { }
 
-    public static Decision assess(Facts facts, boolean alreadyRewarded) {
-        return assess(facts, alreadyRewarded, "UNKNOWN");
-    }
-
-    public static Decision assess(Facts facts, boolean alreadyRewarded, String readability) {
-        var screened = screen(facts, readability);
-        if (screened != null) return screened;
-        var decision = assess(facts);
-        if ("validated".equals(decision.state()) && alreadyRewarded) {
-            return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez la date et le doublon.");
+    public static Decision assess(Facts facts, boolean alreadyRewarded, String readability, boolean normalizationMarkers) {
+        if ("duplicate".equals(facts.uniqueness())) return new Decision("rejected", null, DUPLICATE_MESSAGE);
+        if (!facts.documentPresent()) return doubt("Vérifiez les pièces du signalement.");
+        if ("UNREADABLE".equals(readability)) return doubt("Vérifiez la lisibilité de la facture avant de décider.");
+        if (facts.unresolvedDuplicates()) return doubt("Un rapprochement de factures reste à vérifier.");
+        if (alreadyRewarded) return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez le doublon.");
+        if (!"yes".equals(facts.vatCharged())) {
+            return switch (facts.vatStatus()) {
+                case "registered" -> doubt("Assujettissement confirmé. Vérifiez la conformité de la facture avant de décider.");
+                case "unregistered" -> doubt("L’entreprise a été identifiée comme non assujettie à la TVA.");
+                default -> doubt("Vérifiez si l’entreprise est assujettie à la TVA avant de décider.");
+            };
         }
-        return decision;
-    }
-
-    public static Decision screen(Facts facts, String readability) {
-        if ("duplicate".equals(facts.uniqueness())) {
-            return new Decision("rejected", null, "Facture déjà signalée.");
+        if (normalizationMarkers || "normalized".equals(facts.normalization())) {
+            return doubt("Vérifiez la conformité des éléments de normalisation avant de décider.");
         }
-        if ("UNREADABLE".equals(readability)) {
-            return doubt("Une photo plus nette de la facture est nécessaire.");
+        if (!"READABLE".equals(readability)) {
+            return doubt("Vérifiez les éléments de normalisation directement sur la facture.");
         }
-        if (!facts.taxIdPresent() && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) {
-            return doubt("Le NIF est à compléter. Vérifiez la photo ou demandez une nouvelle pièce.");
-        }
-        return null;
+        return new Decision("validated", VAT_WITHOUT_NORMALIZATION, FINDINGS.get(VAT_WITHOUT_NORMALIZATION) + ".");
     }
 
     public static String screeningReason(Facts facts, String readability) {
         if ("duplicate".equals(facts.uniqueness())) return "duplicate";
         if ("UNREADABLE".equals(readability)) return "unreadable";
-        return screen(facts, readability) == null ? null : "identity-missing";
+        if (!"yes".equals(facts.vatCharged()) && !facts.taxIdPresent()
+                && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) return "identity-missing";
+        return null;
     }
 
-    public static Decision assess(Facts facts) {
-        if ("duplicate".equals(facts.uniqueness())) {
-            return new Decision("rejected", null, "La facture a déjà été signalée.");
-        }
-        if (!facts.documentPresent()) return doubt("Une pièce exploitable est nécessaire.");
-        if (!facts.taxIdPresent()) return doubt("Le NIF de l’établissement doit être récupéré pour vérifier son statut fiscal.");
-        if (facts.unresolvedDuplicates()) return doubt("Un rapprochement de factures reste à vérifier.");
-        if (!"unique".equals(facts.uniqueness())) return doubt("Vérifiez que la facture n’a pas déjà été signalée.");
-        return switch (facts.vatStatus()) {
-            case "registered" -> registered(facts);
-            case "unregistered" -> switch (facts.vatCharged()) {
-                case "yes" -> new Decision("validated", "vat-unregistered", "TVA facturée par une entreprise non assujettie.");
-                case "no" -> new Decision("rejected", null, "L’entreprise n’est pas assujettie et la facture ne mentionne pas de TVA.");
-                default -> doubt("Vérifiez si de la TVA est facturée.");
-            };
-            default -> doubt("L’assujettissement à la TVA doit être vérifié.");
-        };
+    static Decision doubt(String reason) {
+        return new Decision("doubt", null, reason);
     }
-
-    private static Decision registered(Facts facts) {
-        if ("non-normalized".equals(facts.normalization())) {
-            return new Decision("validated", "non-normalized", "Facture non normalisée émise par un établissement assujetti.");
-        }
-        if ("normalized".equals(facts.normalization())) {
-            return new Decision("rejected", null, "Aucune des anomalies prévues par la grille n’est établie.");
-        }
-        return doubt("La normalisation de la facture reste à vérifier.");
-    }
-
-    public static Decision doubt(String reason) { return new Decision("doubt", null, reason); }
 }

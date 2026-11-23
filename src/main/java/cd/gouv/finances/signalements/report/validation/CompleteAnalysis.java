@@ -1,9 +1,9 @@
 package cd.gouv.finances.signalements.report.validation;
 
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
-import java.util.Map;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 public class CompleteAnalysis {
-    private static final String AUTO_VAT_EVIDENCE = "TVA relevée sur la pièce jointe ; à vérifier sur l’image.";
+    private static final String AUTO_VAT_EVIDENCE = "Montant de TVA relevé sur la facture par OCR.";
     private final JdbcTemplate jdbc;
     private final AssessmentStore store;
     private final AssessmentEvidence evidence;
@@ -24,6 +24,7 @@ public class CompleteAnalysis {
     public void execute(AnalysisJobs.Job job) {
         beneficiaries.lock();
         var assessment = store.lock(job.reportId());
+        if (!"running".equals(assessment.jobState())) return;
         var owner = jdbc.queryForObject("select lease_id from app.report_assessment where report_id = ?", java.util.UUID.class, job.reportId());
         if (!job.leaseId().equals(owner)) return;
         var generation = jdbc.queryForObject("select generation from app.report_assessment where report_id = ?", Long.class, job.reportId());
@@ -36,20 +37,16 @@ public class CompleteAnalysis {
         var reading = photoId == null ? null : evidence.latest(photoId);
         var fields = reading == null || !"READ".equals(reading.status()) ? Map.<String, String>of() : reading.fields();
         var charged = AssessmentEvidence.charged(fields.get("vatAmount"));
-        var automaticVat = assessment.vatChargeEvidence() == null || AUTO_VAT_EVIDENCE.equals(assessment.vatChargeEvidence());
         jdbc.update("""
                 update app.report_assessment set job_state = 'done', lease_until = null, error_code = ?, photo_id = ?,
                   extracted = ?::jsonb, reading_ids = ?::jsonb,
                   seller_name = coalesce(seller_name, ?), seller_tax_id = coalesce(seller_tax_id, ?),
                   document_number = coalesce(document_number, ?), document_date = coalesce(document_date, ?),
-                  vat_charged = case when ? then ? else vat_charged end,
-                  vat_charge_evidence = case when ? then case when ? <> 'unknown'
-                    then ? else null end else vat_charge_evidence end
+                  vat_charged = ?, vat_charge_evidence = ?
                 where report_id = ?
                 """, reading == null ? null : reading.errorCode(), photoId, store.json(fields), store.json(evidence.readings(job.reportId())),
                 fields.get("sellerName"), fields.get("sellerTaxId"), fields.get("documentNumber"), date(fields.get("documentDate")),
-                automaticVat, charged, automaticVat, charged, AUTO_VAT_EVIDENCE, job.reportId());
-        // Reading an invoice does not establish its fiscal status, authenticity, or the actual purchase.
+                charged, "unknown".equals(charged) ? null : AUTO_VAT_EVIDENCE, job.reportId());
         duplicates.execute(job.reportId());
         duplicates.prepareUniqueness(job.reportId());
         decision.apply(job.reportId(), "automatic", null);

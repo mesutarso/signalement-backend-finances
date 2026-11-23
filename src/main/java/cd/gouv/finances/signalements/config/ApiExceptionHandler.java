@@ -205,6 +205,12 @@ public class ApiExceptionHandler {
             case "assessment-photo" -> "Choisissez une pièce jointe de ce signalement.";
             case "assessment-value" -> "Une vérification comporte une valeur non acceptée.";
             case "assessment-evidence" -> "Indiquez la source ou le justificatif de chaque vérification renseignée.";
+            case "assessment-decided" -> "Une décision est déjà enregistrée pour ce signalement.";
+            case "assessment-vat-established" -> "L’assujettissement est déjà établi par la TVA relevée sur la facture.";
+            case "assessment-vat-required" -> "Vérifiez l’assujettissement à la TVA avant de prendre cette décision.";
+            case "assessment-duplicate-review" -> "Vérifiez le doublon avant de valider le signalement.";
+            case "assessment-document" -> "Une pièce jointe est nécessaire pour valider le signalement.";
+            case "assessment-paid" -> "La récompense associée à ce dossier a déjà été payée.";
             case "assessment-busy" -> "L’analyse des pièces est en cours. Actualisez le dossier avant de vérifier.";
             case "assessment-screened" -> "Ce dossier est écarté comme doublon.";
             case "assessment-required" -> "Utilisez la nouvelle grille de vérification pour ce signalement.";

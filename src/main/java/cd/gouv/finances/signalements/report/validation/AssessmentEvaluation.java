@@ -16,15 +16,17 @@ public class AssessmentEvaluation {
         var reportId = assessment.reportId();
         var uniqueness = "duplicate".equals(evidence.duplicateStatus(reportId)) ? "duplicate" : assessment.uniqueness();
         var facts = new ValidationRules.Facts(assessment.vatStatus(), assessment.normalization(),
-                assessment.purchaseConformity(), assessment.vatCharged(), uniqueness, assessment.photoId() != null,
+                assessment.vatCharged(), uniqueness, assessment.photoId() != null,
                 present(assessment.sellerTaxId()), evidence.unresolvedDuplicates(reportId));
         var readability = evidence.readability(reportId, assessment.photoId());
         var screeningReason = ValidationRules.screeningReason(facts, readability);
         var alreadyRewarded = rewards.alreadyRewarded(reportId);
-        var completion=PrecalculatedAssessment.completion(assessment,readability);
-        var decision=completion!=null && !"duplicate".equals(uniqueness) ? completion : ValidationRules.assess(facts,alreadyRewarded,readability);
+        var markers = AssessmentEvidence.hasNormalizationMarkers(assessment.extracted())
+                || assessment.readings().stream().anyMatch(reading -> "READ".equals(reading.status())
+                        && AssessmentEvidence.hasNormalizationMarkers(reading.fields()));
+        var decision = ValidationRules.assess(facts, alreadyRewarded, readability, markers);
         return new Result(decision,
-                PrecalculatedAssessment.calculate(assessment, facts, alreadyRewarded, readability), screeningReason);
+                PrecalculatedAssessment.calculate(assessment, facts, alreadyRewarded, readability, markers), screeningReason);
     }
 
     private static boolean present(String value) { return value != null && !value.isBlank(); }

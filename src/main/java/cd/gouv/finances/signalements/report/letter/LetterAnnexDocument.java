@@ -7,16 +7,19 @@ import java.util.Map;
 
 public final class LetterAnnexDocument {
 
-    private static final Map<String, String> FINDINGS = Map.of(
-            "non-normalized", "Facture non normalisée",
-            "nonconform", "Facture non conforme à l’achat réel",
-            "vat-unregistered", "TVA facturée par une entreprise non assujettie",
-            "verification", "Vérification requise",
-            "unknown-seller", "Vendeur non identifié",
-            "fake-invoice", "Facture ou code non authentique",
-            "understated", "Facture minorée",
-            "missing-transmission", "Défaut d'enregistrement ou de transmission",
-            "refusal", "Refus de facture");
+    private static final Map<String, String> FINDINGS = Map.ofEntries(
+            Map.entry("non-normalized", "Facture non normalisée"),
+            Map.entry("nonconform", "Facture non conforme à l’achat réel"),
+            Map.entry("vat-unregistered", "TVA facturée par une entreprise non assujettie"),
+            Map.entry("verification", "Vérification requise"),
+            Map.entry("unknown-seller", "Vendeur non identifié"),
+            Map.entry("fake-invoice", "Facture ou code non authentique"),
+            Map.entry("understated", "Facture minorée"),
+            Map.entry("missing-transmission", "Défaut d'enregistrement ou de transmission"),
+            Map.entry("refusal", "Refus de facture"),
+            Map.entry("fake-normalization", "Facture faussement normalisée"),
+            Map.entry("vat-without-normalization", "TVA collectée sans facture normalisée"),
+            Map.entry("registered-non-normalized", "Entreprise assujettie ne délivrant pas de facture normalisée"));
     private static final Map<String, String> PROOFS = Map.of(
             "photo", "Photo suffisante",
             "register", "Vérification manuelle",

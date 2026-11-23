@@ -16,26 +16,23 @@ public record PrecalculatedAssessment(
     public record Criterion(String key, String label, String value, String source, String detail) { }
 
     public static PrecalculatedAssessment calculate(AssessmentStore.Snapshot assessment,
-                                                    ValidationRules.Facts facts, boolean alreadyRewarded, String readability) {
-        var registered = forecast(facts, "registered", alreadyRewarded, readability);
-        var unregistered = forecast(facts, "unregistered", alreadyRewarded, readability);
-        var completion = completion(assessment, readability);
-        if (completion != null && !"duplicate".equals(facts.uniqueness())) { registered=completion; unregistered=completion; }
+                                                    ValidationRules.Facts facts, boolean alreadyRewarded,
+                                                    String readability, boolean markers) {
         var complete = "done".equals(assessment.jobState());
+        var registered = forecast(facts, "registered", alreadyRewarded, readability, markers);
+        var unregistered = forecast(facts, "unregistered", alreadyRewarded, readability, markers);
         if (!complete) {
             registered = ValidationRules.doubt("L’analyse des pièces doit être terminée avant de conclure.");
             unregistered = registered;
         }
-        var missing = "unknown".equals(facts.vatStatus());
-        var fiscalOnly = complete && missing && !"doubt".equals(registered.state())
-                && !"doubt".equals(unregistered.state()) && "doubt".equals(ValidationRules.assess(facts, alreadyRewarded, readability).state());
-        return new PrecalculatedAssessment(ValidationRules.VERSION, complete, missing, fiscalOnly,
+        var missing = "unknown".equals(facts.vatStatus()) && !"yes".equals(facts.vatCharged());
+        return new PrecalculatedAssessment(ValidationRules.VERSION, complete, missing, false,
                 List.of(new Criterion("readability", "Lisibilité de la photo", readability, "ocr",
                                 "UNREADABLE".equals(readability) ? "Une nouvelle photo est nécessaire."
                                         : "READABLE".equals(readability) ? "Les éléments essentiels de la facture ont été extraits."
                                         : "PARTIAL".equals(readability) ? "La lecture est partielle ; elle ne suffit pas à déclarer la photo illisible."
                                         : "La lisibilité n’est pas encore établie. Une panne OCR n’est pas une photo illisible."),
-                        normalization(assessment), vat(assessment), uniqueness(assessment, facts)),
+                        normalization(assessment, markers), vat(assessment), uniqueness(assessment, facts)),
                 missingFields(assessment, readability),
                 registered, unregistered);
     }
@@ -49,25 +46,21 @@ public record PrecalculatedAssessment(
         return List.copyOf(missing);
     }
 
-    public static ValidationRules.Decision completion(AssessmentStore.Snapshot a, String readability) {
-        var missing=missingFields(a,readability);
-        return missing.isEmpty() ? null : ValidationRules.doubt("À compléter : " + String.join(", ",missing) + ".");
-    }
-
-    private static ValidationRules.Decision forecast(ValidationRules.Facts facts, String vatStatus, boolean alreadyRewarded, String readability) {
-        return ValidationRules.assess(new ValidationRules.Facts(vatStatus, facts.normalization(), facts.purchaseConformity(),
+    private static ValidationRules.Decision forecast(ValidationRules.Facts facts, String vatStatus, boolean alreadyRewarded,
+                                                     String readability, boolean markers) {
+        return ValidationRules.assess(new ValidationRules.Facts(vatStatus, facts.normalization(),
                 facts.vatCharged(), facts.uniqueness(), facts.documentPresent(), facts.taxIdPresent(),
-                facts.unresolvedDuplicates()), alreadyRewarded, readability);
+                facts.unresolvedDuplicates()), alreadyRewarded, readability, markers);
     }
 
-    private static Criterion normalization(AssessmentStore.Snapshot a) {
+    private static Criterion normalization(AssessmentStore.Snapshot a, boolean markers) {
         if (!"unknown".equals(a.normalization())) {
-            return new Criterion("normalization", "Normalisation de la facture", a.normalization(), "review", a.normalizationEvidence());
+            return new Criterion("normalization", "Normalisation de la facture", a.normalization(), "evidence", a.normalizationEvidence());
         }
-        var def = present(a.extracted().get("defCode")) || present(a.extracted().get("defNumber"));
-        return new Criterion("normalization", "Normalisation de la facture", "unknown", "ocr",
-                def ? "Références DEF repérées par OCR. Elles ne suffisent pas à confirmer la normalisation."
-                        : "Aucune référence DEF extraite. Une absence dans l’OCR ne prouve pas une facture non normalisée.");
+        return new Criterion("normalization", "Normalisation de la facture",
+                markers ? "markers-found" : "unknown", "ocr",
+                markers ? "Éléments de normalisation repérés par OCR. Vérifiez leur conformité sur la facture."
+                        : "Aucun élément de normalisation relevé par l’OCR.");
     }
 
     private static Criterion vat(AssessmentStore.Snapshot a) {

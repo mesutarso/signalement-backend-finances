@@ -33,6 +33,14 @@ public class ValidationController {
         return store.view(id);
     }
 
+    @PostMapping("/api/reports/{id}/assessment/decision")
+    @PreAuthorize("hasAuthority('report.review')")
+    public AssessmentStore.View decide(@PathVariable UUID id, @Valid @RequestBody AssessmentResolution body,
+                                        @AuthenticationPrincipal AccountUserDetails account) {
+        review.decide(id, body, account);
+        return store.view(id);
+    }
+
     @PostMapping("/api/reports/{id}/assessment/fiscal-status")
     @PreAuthorize("hasAuthority('report.review')")
     public AssessmentStore.View fiscalStatus(@PathVariable UUID id, @Valid @RequestBody FiscalStatusReview body,

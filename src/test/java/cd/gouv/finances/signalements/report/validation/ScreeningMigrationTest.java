@@ -3,9 +3,14 @@ package cd.gouv.finances.signalements.report.validation;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import cd.gouv.finances.signalements.access.Role;
+import cd.gouv.finances.signalements.access.security.AccountUserDetails;
+import cd.gouv.finances.signalements.report.ReportRejected;
+import cd.gouv.finances.signalements.report.assignment.AutomaticallyAssignReports;
 import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
 import cd.gouv.finances.signalements.report.duplicate.DuplicateLookup;
 import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
+import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
 import java.sql.DriverManager;
 import java.time.Clock;
 import java.util.UUID;
@@ -14,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.jdbc.support.JdbcTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 @EnabledIfEnvironmentVariable(named="VALIDATION_JDBC_URL", matches=".+")
@@ -99,29 +106,107 @@ class ScreeningMigrationTest {
         assertThat(jdbc.queryForObject("select count(*) from app.assessment_event where report_id=? and rule_version=?",Integer.class,missing,ValidationRules.VERSION)).isEqualTo(1);
 
         var review=new ReviewAssessment(jdbc,store,new AssessmentEvidence(jdbc),decision,
-                mock(cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry.class),Clock.systemUTC(),duplicates);
+                mock(BeneficiaryRegistry.class),Clock.systemUTC(),duplicates,rewards);
         review.fiscalStatus(nifOnly,new FiscalStatusReview(store.read(nifOnly).revision(),"unregistered","Référentiel fiscal de recette"),UUID.randomUUID());
         assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unregistered");
         assertThat(store.read(nifOnly).vatEvidence()).contains("Référentiel fiscal");
 
-        jdbc.update("update app.report_assessment set vat_charged='yes',vat_charge_evidence='TVA extraite automatiquement' where report_id=?",nifOnly);
-        var before=store.read(nifOnly);
-        review.execute(nifOnly,new AssessmentReview(before.revision(),"Vendeur corrigé","TEST-NIF","FACTURE-CORRIGÉE","2026-11-10","non-normalized"),UUID.randomUUID());
-        var corrected=store.read(nifOnly);
-        assertThat(corrected.photoId()).isEqualTo(before.photoId());
-        assertThat(corrected.vatStatus()).isEqualTo(before.vatStatus());
-        assertThat(corrected.vatEvidence()).isEqualTo(before.vatEvidence());
-        assertThat(corrected.vatCharged()).isEqualTo("yes");
-        assertThat(corrected.vatChargeEvidence()).isEqualTo("TVA extraite automatiquement");
-        assertThat(corrected.uniqueness()).isEqualTo("unique");
-        assertThat(corrected.extracted()).isEqualTo(before.extracted());
-        assertThat(corrected.state()).isEqualTo("validated");
-        review.execute(nifOnly,new AssessmentReview(corrected.revision(),"Vendeur corrigé","NIF-CORRIGÉ","FACTURE-CORRIGÉE","2026-11-10","non-normalized"),UUID.randomUUID());
-        assertThat(store.read(nifOnly).vatStatus()).isEqualTo("unknown");
-        assertThat(store.read(nifOnly).state()).isEqualTo("doubt");
+        var agent = mock(AccountUserDetails.class);
+        when(agent.getAccountId()).thenReturn(UUID.randomUUID());
+        when(agent.getRole()).thenReturn(Role.AGENT);
+        review.decide(nifOnly, new AssessmentResolution(store.read(nifOnly).revision(), "reject", "unregistered"), agent);
+        assertThat(store.read(nifOnly).state()).isEqualTo("rejected");
+        assertThat(store.read(nifOnly).reason()).contains("non éligible");
+
+        var vatOnly = report(jdbc, "VAT-ONLY", "Vendeur", null, "READABLE", "vat-only");
+        var withDef = report(jdbc, "WITH-DEF", "Vendeur", null, "READABLE", "with-def");
+        jdbc.update("update app.report_assessment set vat_charged='yes', extracted=?::jsonb where report_id=?",
+                "{\"vatAmount\":\"16\"}", vatOnly);
+        jdbc.update("update app.report_assessment set vat_charged='yes', extracted=?::jsonb where report_id=?",
+                "{\"vatAmount\":\"16\",\"defNumber\":\"DEF-1\"}", withDef);
+        decision.apply(vatOnly, "automatic", null);
+        decision.apply(withDef, "automatic", null);
+        assertThat(store.view(vatOnly).finding()).isEqualTo("vat-without-normalization");
+        assertThat(store.read(vatOnly).vatSource()).isEqualTo("ocr");
+        assertThat(store.read(withDef).state()).isEqualTo("doubt");
+        assertThat(store.read(withDef).vatStatus()).isEqualTo("registered");
+        review.decide(withDef, new AssessmentResolution(store.read(withDef).revision(), "validate", "fake-normalization"), agent);
+        assertThat(store.view(withDef).finding()).isEqualTo("fake-normalization");
+
+        assertThatThrownBy(() -> review.decide(nameOnly,
+                new AssessmentResolution(store.read(nameOnly).revision(), "validate", "non-normalized"), agent))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("assessment-vat-required"));
+        var admin = mock(AccountUserDetails.class);
+        when(admin.getAccountId()).thenReturn(UUID.randomUUID());
+        when(admin.getRole()).thenReturn(Role.ADMINISTRATOR);
+        assertThatThrownBy(() -> review.decide(withDef,
+                new AssessmentResolution(store.read(withDef).revision(), "reject", "normalized"), agent))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("assessment-decided"));
+        jdbc.update("""
+                insert into app.draw_ticket (id, report_id, report_reference, person_key, kind, period_start)
+                values (?, ?, 'WITH-DEF', 'test-person', 'monthly', '2026-11-01')
+                """, UUID.randomUUID(), withDef);
+        review.decide(withDef, new AssessmentResolution(store.read(withDef).revision(), "reject", "normalized"), admin);
+        decision.apply(withDef, "automatic", null);
+        assertThat(store.read(withDef).reason()).isEqualTo("Facture déjà normalisée.");
+        assertThat(jdbc.queryForObject("select excluded_at from app.draw_ticket where report_id = ?", java.sql.Timestamp.class, withDef))
+                .isNotNull();
+
+        review.decide(unreadable, new AssessmentResolution(store.read(unreadable).revision(), "reject", "unreadable"), agent);
+        assertThat(store.read(unreadable).reason()).isEqualTo("Veuillez refaire votre signalement avec une photo plus lisible.");
         review.execute(nameOnly,new AssessmentReview(store.read(nameOnly).revision(),"Vendeur","NIF-AJOUTÉ","FACTURE","2026-11-10","non-normalized"),UUID.randomUUID());
         assertThat(store.read(nameOnly).sellerTaxId()).isEqualTo("NIF-AJOUTÉ");
         assertThat(reason(jdbc,nameOnly)).isNull();
+
+        var alice = account(jdbc, "alice", "AGENT", true);
+        var bob = account(jdbc, "bob", "AGENT", true);
+        var disabled = account(jdbc, "disabled", "AGENT", false);
+        var administrator = account(jdbc, "administrator", "ADMINISTRATOR", true);
+        var assign = new AutomaticallyAssignReports(jdbc, new BeneficiaryRegistry(jdbc, null, null, Clock.systemUTC()));
+        var transaction = new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource()));
+        transaction.executeWithoutResult(status -> assign.run());
+        transaction.executeWithoutResult(status -> assign.run());
+
+        assertThat(jdbc.queryForList("""
+                select distinct assignee_id from app.report where validation_state = 'doubt'
+                """, UUID.class)).containsExactlyInAnyOrder(alice, bob).doesNotContain(disabled, administrator);
+        assertThat(jdbc.queryForList("""
+                select count(*) from app.report where validation_state = 'doubt' group by assignee_id
+                """, Long.class)).containsExactlyInAnyOrder(3L, 4L);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from app.report_assignment where actor_id = ?
+                """, Long.class, ValidationRules.AUTOMATION)).isEqualTo(7L);
+        assertThat(jdbc.queryForObject("select assignee_id from app.report where id = ?", UUID.class, vatOnly)).isNull();
+
+        var assigned = jdbc.queryForObject("select assignee_id from app.report where id = ?", UUID.class, nameOnly);
+        jdbc.update("update app.report set state = 'pending', assignee_id = null where id = ?", nameOnly);
+        jdbc.update("""
+                insert into app.report_assignment (id, report_id, actor_id, previous_assignee_id, state, recorded_at)
+                values (?, ?, ?, ?, 'pending', current_timestamp)
+                """, UUID.randomUUID(), nameOnly, admin.getAccountId(), assigned);
+        transaction.executeWithoutResult(status -> assign.run());
+        assertThat(jdbc.queryForObject("select assignee_id from app.report where id = ?", UUID.class, nameOnly)).isNull();
+
+        review.fiscalStatus(nameOnly, new FiscalStatusReview(store.read(nameOnly).revision(), "registered", "Registre de recette"), agent.getAccountId());
+        assertThat(store.read(nameOnly).state()).isEqualTo("doubt");
+        review.decide(nameOnly, new AssessmentResolution(store.read(nameOnly).revision(), "validate", "registered-non-normalized"), agent);
+        assertThat(store.view(nameOnly).finding()).isEqualTo("registered-non-normalized");
+
+        var failedPhoto = store.read(failed).photoId();
+        jdbc.update("update app.report_assessment set photo_id = null where report_id = ?", failed);
+        review.fiscalStatus(failed, new FiscalStatusReview(store.read(failed).revision(), "registered", "Registre de recette"), agent.getAccountId());
+        review.decide(failed, new AssessmentResolution(store.read(failed).revision(), "validate", "non-normalized"), agent);
+        assertThat(store.read(failed).photoId()).isEqualTo(failedPhoto);
+        assertThat(store.view(failed).finding()).isEqualTo("non-normalized");
+    }
+
+    private static UUID account(JdbcTemplate jdbc, String username, String role, boolean enabled) {
+        var id = UUID.randomUUID();
+        jdbc.update("""
+                insert into app.user_account (id, username, password_hash, role, enabled, failed_attempts, created_at)
+                values (?, ?, 'unused', ?, ?, 0, current_timestamp)
+                """, id, username, role, enabled);
+        return id;
     }
 
     private static String reason(JdbcTemplate jdbc,UUID id) {

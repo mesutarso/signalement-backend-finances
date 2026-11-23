@@ -1,5 +1,7 @@
 package cd.gouv.finances.signalements.report.validation;
 
+import cd.gouv.finances.signalements.access.Role;
+import cd.gouv.finances.signalements.access.security.AccountUserDetails;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
@@ -25,6 +27,7 @@ public class ReviewAssessment {
     private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
     private final AutomaticDuplicates duplicates;
+    private final FixedRewards rewards;
 
     @PreAuthorize("hasAuthority('report.review')")
     @Transactional
@@ -32,7 +35,9 @@ public class ReviewAssessment {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
+        requirePending(current);
         requireNotScreened(current);
+        if ("yes".equals(current.vatCharged())) throw new ReportRejected("assessment-vat-established", 409);
         require(review.vatStatus(), Set.of("registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
         var now = Timestamp.from(clock.instant());
         jdbc.update("""
@@ -48,6 +53,7 @@ public class ReviewAssessment {
         beneficiaries.lock();
         var current = store.lock(reportId);
         requireCurrent(current, review.revision());
+        requirePending(current);
         requireNotScreened(current);
         var normalizationEvidence = "unknown".equals(review.normalization()) ? null
                 : java.util.Objects.equals(review.normalization(), current.normalization()) && clean(current.normalizationEvidence()) != null
@@ -70,6 +76,84 @@ public class ReviewAssessment {
         }
         duplicates.prepareUniqueness(reportId);
         decision.apply(reportId, "manual", actorId);
+    }
+
+    @PreAuthorize("hasAuthority('report.review')")
+    @Transactional
+    public void decide(UUID reportId, AssessmentResolution body, AccountUserDetails account) {
+        beneficiaries.lock();
+        var current = store.lock(reportId);
+        requireCurrent(current, body.revision());
+        var administrator = account.getRole() == Role.ADMINISTRATOR;
+        if (!administrator || !Set.of("validated", "rejected").contains(current.state())) {
+            requirePending(current);
+        } else {
+            requireUnpaid(reportId);
+        }
+
+        var confirmedDuplicate = "duplicate".equals(evidence.duplicateStatus(reportId));
+        var resolved = switch (body.decision()) {
+            case "validate" -> validation(current, body.code(), confirmedDuplicate);
+            case "reject" -> rejection(current, body.code(), confirmedDuplicate);
+            default -> throw new ReportRejected("assessment-value", 400);
+        };
+        var screeningReason = "reject".equals(body.decision()) && Set.of("duplicate", "unreadable").contains(body.code())
+                ? body.code() : null;
+        decision.record(current, resolved, screeningReason, "manual", account.getAccountId());
+    }
+
+    private ValidationRules.Decision validation(AssessmentStore.Snapshot current, String category, boolean confirmedDuplicate) {
+        var label = ValidationRules.FINDINGS.get(category);
+        if (label == null) throw new ReportRejected("assessment-value", 400);
+        var reportId = current.reportId();
+        if (confirmedDuplicate || evidence.unresolvedDuplicates(reportId)) {
+            throw new ReportRejected("assessment-duplicate-review", 409);
+        }
+        if (!"yes".equals(current.vatCharged()) && !"registered".equals(current.vatStatus())) {
+            throw new ReportRejected("assessment-vat-required", 409);
+        }
+        if (current.photoId() == null) {
+            var selectedPhoto = evidence.selected(reportId, null);
+            if (selectedPhoto == null) throw new ReportRejected("assessment-document", 409);
+            jdbc.update("update app.report_assessment set photo_id = ? where report_id = ?", selectedPhoto, reportId);
+        }
+        if (rewards.alreadyRewarded(reportId)) throw new ReportRejected("assessment-duplicate-review", 409);
+        recordNormalization(current.reportId(), "non-normalized", label);
+        return new ValidationRules.Decision("validated", category, label + ".");
+    }
+
+    private ValidationRules.Decision rejection(AssessmentStore.Snapshot current, String code, boolean confirmedDuplicate) {
+        var label = ValidationRules.REJECTIONS.get(code);
+        if (label == null) throw new ReportRejected("assessment-value", 400);
+        if (confirmedDuplicate && !"duplicate".equals(code)) throw new ReportRejected("assessment-screened", 409);
+        if ("unregistered".equals(code) && (!"unregistered".equals(current.vatStatus()) || "yes".equals(current.vatCharged()))) {
+            throw new ReportRejected("assessment-vat-required", 409);
+        }
+        if ("normalized".equals(code)) {
+            if ("unknown".equals(current.vatStatus()) && !"yes".equals(current.vatCharged())) {
+                throw new ReportRejected("assessment-vat-required", 409);
+            }
+            recordNormalization(current.reportId(), "normalized", label);
+        }
+        return new ValidationRules.Decision("rejected", null, label);
+    }
+
+    private void recordNormalization(UUID reportId, String normalization, String evidenceLabel) {
+        jdbc.update("""
+                update app.report_assessment set normalization = ?, normalization_evidence = ? where report_id = ?
+                """, normalization, evidenceLabel, reportId);
+    }
+
+    private void requireUnpaid(UUID reportId) {
+        if (Boolean.TRUE.equals(jdbc.queryForObject("""
+                select exists(select 1 from app.prime p join app.payment_statement_line l on l.prime_id = p.id
+                  join app.payment_attempt a on a.line_id = l.id where p.report_id = ?
+                  and a.result = 'paid' and a.reference_code not like 'SIM-%')
+                """, Boolean.class, reportId))) throw new ReportRejected("assessment-paid", 409);
+    }
+
+    private static void requirePending(AssessmentStore.Snapshot current) {
+        if (!"doubt".equals(current.state())) throw new ReportRejected("assessment-decided", 409);
     }
 
     private static void require(String value, Set<String> allowed, String proof) {
