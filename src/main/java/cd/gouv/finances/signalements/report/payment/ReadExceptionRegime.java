@@ -98,10 +98,10 @@ public class ReadExceptionRegime {
             if (start != null && end != null && start.isAfter(end)) throw new ReportRejected("period", 400);
         }
     }
-    public record Report(UUID id, String reference, LocalDate date, String declarant, String company, String state,
+    public record Report(UUID id, LocalDate date, String declarant, String company, String state,
             String finding, String reason, Integer amount, String paymentState, String paymentReference, String paymentError) { }
     public record Page(List<Report> items, long total, long validatable, int page, int size, String environment, boolean configured) { }
-    public record Candidate(UUID id, String reference, String phone, int amount, UUID primeId, UUID lineId,
+    public record Candidate(UUID id, String declarant, LocalDate date, String phone, int amount, UUID primeId, UUID lineId,
             UUID previousTransferId) { }
 
     @Transactional(readOnly = true)
@@ -146,7 +146,7 @@ public class ReadExceptionRegime {
             if (wallet == null) status = "phone";
             else if (araka.sandbox() && !allowedWallet(wallet)) status = "test-wallet";
         }
-        return new Report(row.getObject("id", UUID.class), row.getString("reference_code"),
+        return new Report(row.getObject("id", UUID.class),
                 row.getObject("reported_on", LocalDate.class), row.getString("reporter_name"), row.getString("seller_name"),
                 row.getString("validation_state"), row.getString("finding"), row.getString("reason"),
                 row.getObject("amount", Integer.class), status, row.getString("transfer_reference"),
@@ -163,7 +163,8 @@ public class ReadExceptionRegime {
     }
 
     private static Candidate candidate(ResultSet row, int index) throws SQLException {
-        return new Candidate(row.getObject("id", UUID.class), row.getString("reference_code"), row.getString("phone"),
+        return new Candidate(row.getObject("id", UUID.class), row.getString("reporter_name"),
+                row.getObject("reported_on", LocalDate.class), row.getString("phone"),
                 row.getInt("amount"), row.getObject("prime_id", UUID.class), row.getObject("line_id", UUID.class),
                 row.getObject("transfer_id", UUID.class));
     }

@@ -34,7 +34,7 @@ public class ReadDeclarantMessagesQuery {
                 row.getObject(1, UUID.class),
                 row.getString(2),
                 row.getString(3),
-                row.getString(4),
+                DeclarantMessageText.withoutReportReference(row.getString(4), row.getString(2)),
                 row.getTimestamp(5).toInstant(), row.getString(6),
                 row.getTimestamp(7) == null ? null : row.getTimestamp(7).toInstant(), row.getString(8)), SIZE, requested * (long) SIZE);
         return new DeclarantMessagePageResponse(items, requested, SIZE, total == null ? 0 : total);

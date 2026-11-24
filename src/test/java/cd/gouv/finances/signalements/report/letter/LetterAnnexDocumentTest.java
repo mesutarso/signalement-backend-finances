@@ -18,7 +18,7 @@ class LetterAnnexDocumentTest {
         assertThat(csv).contains("Numéro d'impôt");
         assertThat(csv).contains("'=Kiosque");
         assertThat(csv).contains("Facture non normalisée");
-        assertThat(csv).doesNotContain("phone");
+        assertThat(csv).doesNotContain("REF-1", "Référence", "phone");
         assertThat(csv).doesNotContain("email");
     }
 }

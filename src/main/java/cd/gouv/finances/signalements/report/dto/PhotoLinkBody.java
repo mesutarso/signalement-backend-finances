@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record PhotoLinkBody(
-        @NotBlank(message = "Indiquez la référence du signalement reçu.")
-        @Size(max = 80, message = "La référence est trop longue.")
+        @NotBlank(message = "Sélectionnez le signalement reçu.")
+        @Size(max = 80, message = "Le signalement sélectionné est invalide.")
         String referenceCode) {
 }

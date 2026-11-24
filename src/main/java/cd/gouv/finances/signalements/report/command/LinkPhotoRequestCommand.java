@@ -1,5 +1,6 @@
 package cd.gouv.finances.signalements.report.command;
 
+import cd.gouv.finances.signalements.report.ReportReference;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.dto.PhotoRequestResponse;
 import cd.gouv.finances.signalements.report.entity.PhotoRequest;
@@ -33,14 +34,21 @@ public class LinkPhotoRequestCommand {
         jdbc.query("select id from app.photo_request where id=? for update",(r,n)->r.getObject(1,UUID.class),requestId);
         var request=requests.findById(requestId).filter(r->r.getReportId().equals(reportId))
                 .orElseThrow(()->new ReportRejected("request-absent",404));
-        var matches=reports.findIdsByVisibleReference(referenceCode.trim());
-        if (matches.isEmpty()) throw new ReportRejected("report-absent",404);
-        if (matches.size()!=1) throw new ReportRejected("ambiguous-report",409);
-        var source=matches.getFirst();
+        var reference = referenceCode.trim();
+        var source = ReportReference.selectedId(reference);
+        if (source == null) {
+            var matches = reports.findIdsByVisibleReference(reference);
+            if (matches.isEmpty()) throw new ReportRejected("report-absent", 404);
+            if (matches.size() != 1) throw new ReportRejected("ambiguous-report", 409);
+            source = matches.getFirst();
+        } else {
+            reference = jdbc.query("select reference_code from app.report where id = ?", (row, n) -> row.getString(1), source)
+                    .stream().findFirst().orElseThrow(() -> new ReportRejected("report-absent", 404));
+        }
         if (source.equals(reportId)) throw new ReportRejected("same-report",400);
         if (PhotoRequest.LINKED.equals(request.getStatus())) {
             if (!source.equals(request.getLinkedReportId())) throw new ReportRejected("already-linked",409);
-            return RequestPhotoCommand.response(request,referenceCode.trim());
+            return RequestPhotoCommand.response(request,reference);
         }
         var valid=jdbc.queryForObject("""
                 select exists(select 1 from app.report target join app.report incoming on incoming.id=?
@@ -87,6 +95,6 @@ public class LinkPhotoRequestCommand {
                 """,UUID.randomUUID(),left,right,actorId,reportId);
         var done=jdbc.queryForObject("select job_state='done' from app.report_assessment where report_id=?",Boolean.class,source);
         if(Boolean.TRUE.equals(done)) decisions.apply(source,"manual",actorId);
-        return RequestPhotoCommand.response(request,referenceCode.trim());
+        return RequestPhotoCommand.response(request,reference);
     }
 }

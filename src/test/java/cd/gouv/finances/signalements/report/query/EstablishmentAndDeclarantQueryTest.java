@@ -68,6 +68,8 @@ class EstablishmentAndDeclarantQueryTest {
 
         var situations = new ReadDeclarantSituationQuery(jdbc, new ReportReference(jdbc), new ActiveRule(jdbc));
         var situation = situations.execute("VAL-01");
+        var selectedId = jdbc.queryForObject("select id from app.report where reference_code = 'VAL-01'", UUID.class);
+        assertThat(situations.execute("id:" + selectedId)).isEqualTo(situation);
         assertThat(situation.validatedCount()).isEqualTo(declarant.validated());
         assertThat(situation.validatedRewardAmount()).isEqualTo(declarant.validatedRewardAmount());
         assertThat(situation.reports()).anyMatch(item -> item.id().equals(first) && item.status().equals("confirmed"));

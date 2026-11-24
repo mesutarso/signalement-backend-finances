@@ -44,8 +44,16 @@ public class MessageDeliveryStore {
                   recipient = (select regexp_replace(coalesce(r.reporter_phone, ''), '[^0-9]', '', 'g') from app.report r where r.id = m.report_id),
                   delivery_code = null, provider_status = null
                 where m.id = ? and m.status in ('prepared', 'failed') and (m.kind <> 'photo' or (?::uuid is not null and m.photo_request_id=?))
-                returning recipient, body
-                """, (row, number) -> new Submission(selectedMessageId, attemptId, UnikronProperties.cleanPhone(row.getString(1)), row.getString(2)),
+                returning recipient, body, kind, report_reference
+                """, (row, number) -> {
+            var body = row.getString(2);
+            var kind = row.getString(3);
+            if (!DeclarantMessageText.PHOTO.equals(kind)) {
+                body = DeclarantMessageText.withoutReportReference(body, row.getString(4));
+                if (body.isBlank()) body = DeclarantMessageText.pattern(kind);
+            }
+            return new Submission(selectedMessageId, attemptId, UnikronProperties.cleanPhone(row.getString(1)), body);
+        },
                 attemptId, Timestamp.from(clock.instant()), messageId, requestId, requestId);
         if (claimed.isEmpty()) {
             if (Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from app.declarant_message where id = ? and kind = 'photo')", Boolean.class, messageId))) {
@@ -56,8 +64,8 @@ public class MessageDeliveryStore {
         }
         var submission = claimed.getFirst();
         DeclarantMessageText.requireSms(submission.body());
-        jdbc.update("update app.declarant_message set recipient = ? where id = ? and send_attempt_id = ?",
-                submission.phone(), messageId, attemptId);
+        jdbc.update("update app.declarant_message set recipient = ?, body = ? where id = ? and send_attempt_id = ?",
+                submission.phone(), submission.body(), messageId, attemptId);
         return submission;
     }
 

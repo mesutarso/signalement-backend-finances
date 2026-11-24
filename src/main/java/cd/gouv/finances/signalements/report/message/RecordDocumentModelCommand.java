@@ -26,7 +26,9 @@ public class RecordDocumentModelCommand {
     public UUID execute(String kind, String body, UUID actorId) {
         var keptKind = kind == null ? "" : kind.trim();
         DeclarantMessageText.pattern(keptKind);
-        var kept = DeclarantMessageText.validatePattern(body, models.referenceLength());
+        var kept = DeclarantMessageText.PHOTO.equals(keptKind)
+                ? DeclarantMessageText.validatePattern(body, models.referenceLength())
+                : DeclarantMessageText.validateReportMessage(body);
         jdbc.queryForObject("select pg_advisory_xact_lock(1107, ?)", Object.class, keptKind.hashCode());
         var id = UUID.randomUUID();
         var now = Timestamp.from(clock.instant());

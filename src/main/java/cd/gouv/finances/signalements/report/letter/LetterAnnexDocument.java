@@ -36,14 +36,14 @@ public final class LetterAnnexDocument {
         var selected = lines.stream().filter(line -> annex.equals(line.getAnnex())).toList();
         var builder = new StringBuilder("\uFEFF");
         if (LetterLine.COMPANY.equals(annex)) {
-            builder.append("Numéro d'impôt,Nom,Constat,Preuve,Décision,Référence\n");
+            builder.append("Numéro d'impôt,Nom,Constat,Preuve,Décision\n");
             for (var line : selected) {
-                builder.append(row(line.getTaxId(), line.getSellerName(), label(FINDINGS, line.getFinding()), label(PROOFS, line.getProof()), label(DECISIONS, line.getDecision()), line.getReportReference()));
+                builder.append(row(line.getTaxId(), line.getSellerName(), label(FINDINGS, line.getFinding()), label(PROOFS, line.getProof()), label(DECISIONS, line.getDecision())));
             }
         } else {
-            builder.append("Numéro d'impôt,Numéro de pièce,Date,Montant,Constat,Référence\n");
+            builder.append("Numéro d'impôt,Numéro de pièce,Date,Montant,Constat\n");
             for (var line : selected) {
-                builder.append(row(line.getTaxId(), line.getDocumentNumber(), line.getIssuedOn() == null ? "" : line.getIssuedOn().toString(), line.getAmount(), label(FINDINGS, line.getFinding()), line.getReportReference()));
+                builder.append(row(line.getTaxId(), line.getDocumentNumber(), line.getIssuedOn() == null ? "" : line.getIssuedOn().toString(), line.getAmount(), label(FINDINGS, line.getFinding())));
             }
         }
         return builder.toString().getBytes(StandardCharsets.UTF_8);
