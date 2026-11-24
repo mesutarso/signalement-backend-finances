@@ -186,6 +186,7 @@ public class ApiExceptionHandler {
             case "payment-recipient-blocked" -> "Ce numéro et cet opérateur ne sont pas autorisés pour les essais.";
             case "payment-request-conflict" -> "Cette demande correspond déjà à un autre versement.";
             case "payment-transfer-busy" -> "Un versement est déjà en cours, à confirmer ou terminé pour cette ligne.";
+            case "payment-transfer-stale" -> "Le statut du versement a changé. Actualisez les récompenses.";
             case "payment-transfer-absent" -> "Versement introuvable.";
             case "payment-environment" -> "Ce versement appartient à un autre environnement.";
             case "payment-beneficiary" -> "Le bénéficiaire ou son numéro de paiement doit être vérifié.";

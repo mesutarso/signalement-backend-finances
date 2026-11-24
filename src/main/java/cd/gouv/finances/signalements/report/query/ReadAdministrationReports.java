@@ -60,9 +60,9 @@ public class ReadAdministrationReports {
     public Page<Declarant> declarants(int page) {
         var grouped = REPORTS + """
                 , grouped as (
-                    select (array_agg(id order by reported_at desc nulls last, id desc))[1] as report_id,
-                        (array_agg(reference_code order by reported_at desc nulls last, id desc))[1] as reference,
-                        (array_agg(reporter_name order by reported_at desc nulls last, id desc)
+                    select (array_agg(reports.id order by reported_at desc nulls last, reports.id desc))[1] as report_id,
+                        (array_agg(reference_code order by reported_at desc nulls last, reports.id desc))[1] as reference,
+                        (array_agg(reporter_name order by reported_at desc nulls last, reports.id desc)
                             filter (where nullif(btrim(reporter_name), '') is not null))[1] as name,
                         nullif(btrim(reporter_user_id), '') is not null as identified,
                         count(*) as total, count(*) filter (where outcome = 'validated') as validated,
@@ -71,12 +71,9 @@ public class ReadAdministrationReports {
                         count(*) filter (where outcome = 'duplicate') as duplicates,
                         count(*) filter (where outcome = 'pending') as pending
                     from reports
-                    left join (
-                        select report_id as rewarded_report_id, amount
-                        from app.prime where report_id is not null and status <> 'withdrawn'
-                    ) reward on reward.rewarded_report_id = reports.id
+                    left join app.prime reward on reward.report_id = reports.id and reward.status <> 'withdrawn'
                     group by nullif(btrim(reporter_user_id), ''),
-                        case when nullif(btrim(reporter_user_id), '') is null then id end
+                        case when nullif(btrim(reporter_user_id), '') is null then reports.id end
                 )
                 """;
         return page(grouped, "grouped", "total desc, report_id", page, (r, n) -> new Declarant(

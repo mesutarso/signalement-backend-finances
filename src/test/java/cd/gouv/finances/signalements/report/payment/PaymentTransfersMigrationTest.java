@@ -6,6 +6,7 @@ import cd.gouv.finances.signalements.araka.ArakaResult;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
 import cd.gouv.finances.signalements.report.prime.PrimeGuard;
+import cd.gouv.finances.signalements.report.prime.ReadRewardsQuery;
 import cd.gouv.finances.signalements.report.validation.RewardPaymentGuard;
 import java.net.URI;
 import java.sql.DriverManager;
@@ -53,12 +54,54 @@ class PaymentTransfersMigrationTest {
         assertThat(jdbc.queryForObject("select count(*) from app.payment_attempt",Integer.class)).isEqualTo(1);
         assertThatThrownBy(()->sandbox.reserveTest("0827243119","mpesa",UUID.randomUUID(),actor)).isInstanceOf(ReportRejected.class);
 
-        var production=store(jdbc,registry,new ArakaProperties(URI.create("https://fixture.example.invalid"),"fixture","fixture",ArakaProperties.Mode.PRODUCTION,true));
-        var claim=production.reserveLine(statement,line,"mpesa",UUID.randomUUID(),actor);
+        var properties = new ArakaProperties(URI.create("https://fixture.example.invalid"), "fixture", "fixture",
+                ArakaProperties.Mode.PRODUCTION, true);
+        var production = store(jdbc, registry, properties);
+        var rewards = new ReadRewardsQuery(jdbc, properties);
+        var firstOrder = new PaymentTransfers.RewardOrder(line, null, "production", "mpesa");
+        assertThat(rewards.execute(0, actor, true).items().getFirst().payment().state()).isEqualTo("ready");
+        assertThatThrownBy(() -> production.reserveReward(UUID.randomUUID(), firstOrder, actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-line"));
+        assertThatThrownBy(() -> production.reserveReward(prime, new PaymentTransfers.RewardOrder(line, null, "sandbox", "mpesa"), actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-environment"));
+        var authorizer = jdbc.queryForObject("select authorized_by from app.payment_statement where id = ?", UUID.class, statement);
+        assertThatThrownBy(() -> production.reserveReward(prime, firstOrder, authorizer))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-separation"));
+
+        PaymentTransfers.Claim first;
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var results = pool.invokeAll(List.<java.util.concurrent.Callable<PaymentTransfers.Claim>>of(
+                    () -> production.reserveReward(prime, firstOrder, actor),
+                    () -> production.reserveReward(prime, firstOrder, actor)));
+            var left = results.get(0).get();
+            var right = results.get(1).get();
+            assertThat(left.transfer().reference()).isEqualTo(right.transfer().reference());
+            assertThat(left.submit()).isNotEqualTo(right.submit());
+            first = left.submit() ? left : right;
+        }
+        production.submitted(first.transfer().id(), ArakaResult.failed("declined"));
+        var failed = rewards.execute(0, actor, true).items().getFirst().payment();
+        assertThat(failed.state()).isEqualTo("failed");
+        assertThat(failed.transferId()).isEqualTo(first.transfer().id());
+        assertThat(production.reserveReward(prime, firstOrder, actor).submit()).isFalse();
+        assertThatThrownBy(() -> production.reserveReward(prime, new PaymentTransfers.RewardOrder(line, null, "production", "orange"), actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-request-conflict"));
+        assertThatThrownBy(() -> production.reserveReward(prime,
+                new PaymentTransfers.RewardOrder(line, UUID.randomUUID(), "production", "mpesa"), actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-transfer-stale"));
+
+        var retry = new PaymentTransfers.RewardOrder(line, failed.transferId(), "production", "mpesa");
+        var claim = production.reserveReward(prime, retry, actor);
         assertThat(claim.submit()).isTrue();
+        assertThat(claim.transfer().reference()).isNotEqualTo(first.transfer().reference());
         assertThatThrownBy(()->production.reserveLine(statement,line,"mpesa",UUID.randomUUID(),actor)).isInstanceOf(ReportRejected.class);
         assertThatThrownBy(()->PaymentHold.requireNoPending(jdbc,report)).isInstanceOf(ReportRejected.class);
         production.submitted(claim.transfer().id(),ArakaResult.unknown("network-uncertain"));
+        assertThat(production.reserveReward(prime, retry, actor).transfer().state()).isEqualTo("unknown");
+        assertThatThrownBy(() -> production.reserveReward(prime,
+                new PaymentTransfers.RewardOrder(line, claim.transfer().id(), "production", "mpesa"), actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-transfer-busy"));
+        assertThat(rewards.execute(0, actor, true).items().getFirst().payment().state()).isEqualTo("unknown");
         var old=production.claimCheck(claim.transfer().id());
         assertThat(old.lease()).isNotNull();
         assertThat(production.claimCheck(claim.transfer().id()).lease()).isNull();
@@ -69,6 +112,7 @@ class PaymentTransfersMigrationTest {
         var approved=new ArakaResult("paid","approved","T-LIVE-FIXTURE",false);
         production.checked(current,approved);production.checked(current,approved);
         assertThat(new PrimeGuard(jdbc).paid(prime)).isTrue();
+        assertThat(rewards.execute(0, actor, true).items().getFirst().payment().state()).isEqualTo("paid");
         assertThat(jdbc.queryForObject("select count(*) from app.payment_attempt where reference_code not like 'SIM-%'",Integer.class)).isEqualTo(1);
         PaymentHold.requireNoPending(jdbc,report);
 

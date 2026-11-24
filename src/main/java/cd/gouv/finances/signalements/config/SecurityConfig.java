@@ -109,7 +109,8 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.GET, "/api/letters", "/api/letters/**", "/api/letter-routes").hasAuthority("letter.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarant-messages").hasAuthority("message.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/document-models").hasAuthority("template.read");
-                    requests.requestMatchers(HttpMethod.GET, "/api/rewards", "/api/payout-numbers", "/api/beneficiaries").hasAuthority("reward.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/rewards").hasAnyAuthority("reward.read", "payment.execute");
+                    requests.requestMatchers(HttpMethod.GET, "/api/payout-numbers", "/api/beneficiaries").hasAuthority("reward.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/payment-statements", "/api/payment-statements/**", "/api/payment-transfers").hasAuthority("payment.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/payment-samples", "/api/payment-samples/**").hasAuthority("sample.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/draws").hasAuthority("draw.read");
@@ -130,6 +131,7 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.POST, "/api/declarant-messages/*/deliveries").hasAuthority("message.send");
                     requests.requestMatchers(HttpMethod.POST, "/api/document-models").hasAuthority("template.write");
                     requests.requestMatchers(HttpMethod.POST, "/api/rewards/*/reviews").hasAuthority("reward.approve");
+                    requests.requestMatchers(HttpMethod.POST, "/api/rewards/*/transfers").hasAuthority("payment.execute");
                     requests.requestMatchers(HttpMethod.POST, "/api/beneficiaries").hasAuthority("beneficiary.verify");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-statements").hasAuthority("payment.prepare");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-statements/*/controls").hasAuthority("payment.control");

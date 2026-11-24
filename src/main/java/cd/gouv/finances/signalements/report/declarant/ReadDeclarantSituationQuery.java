@@ -41,19 +41,20 @@ public class ReadDeclarantSituationQuery {
         var reports = reports(filter, scope);
         var validated = validationTotals(filter, scope);
         var rule = activeRule.requireActive();
-        var primeAmount = declarant == null ? 0 : sum("""
-                select coalesce(sum(amount), 0) from app.prime where declarant_id = ? and report_id is not null and status <> 'withdrawn'
-                """, declarant);
-        var paidAmount = declarant == null ? 0 : sum("""
+        var rewardFilter = declarant == null ? "prime.report_id = ?" : "prime.report_id is not null and prime.declarant_id = ?";
+        var primeAmount = sum("""
+                select coalesce(sum(amount), 0) from app.prime prime where %s and status <> 'withdrawn'
+                """.formatted(rewardFilter), scope);
+        var paidAmount = sum("""
                 select coalesce(sum(line.amount), 0)
                 from app.payment_attempt attempt
                 join app.payment_statement_line line on line.id = attempt.line_id
                 join app.prime prime on prime.id = line.prime_id
-                where attempt.result = 'paid' and attempt.reference_code not like 'SIM-%' and prime.report_id is not null and prime.declarant_id = ?
-                """, declarant);
-        var approved = declarant != null && count("""
-                select count(*) from app.prime where declarant_id = ? and report_id is not null and status = 'approved'
-                """, declarant) > 0;
+                where attempt.result = 'paid' and attempt.reference_code not like 'SIM-%%' and %s
+                """.formatted(rewardFilter), scope);
+        var approved = count("""
+                select count(*) from app.prime prime where %s and status = 'approved'
+                """.formatted(rewardFilter), scope) > 0;
         var tickets = count(declarant == null
                 ? "select count(*) from app.draw_ticket where report_id = ? and excluded_at is null"
                 : """

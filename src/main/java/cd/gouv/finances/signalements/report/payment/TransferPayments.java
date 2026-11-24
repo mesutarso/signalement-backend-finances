@@ -1,6 +1,7 @@
 package cd.gouv.finances.signalements.report.payment;
 
 import cd.gouv.finances.signalements.araka.ArakaGateway;
+import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,10 +15,19 @@ import org.springframework.stereotype.Component;
 public class TransferPayments {
     private final PaymentTransfers transfers;
     private final ArakaGateway gateway;
+    private final RecordAudit audit;
 
     @PreAuthorize("hasAuthority('payment.execute')")
     public PaymentTransfers.Transfer send(UUID statement, UUID line, String operator, UUID request, UUID actor) {
         return submit(transfers.reserveLine(statement, line, operator, request, actor));
+    }
+
+    @PreAuthorize("hasAuthority('payment.execute')")
+    public PaymentTransfers.Transfer sendReward(UUID rewardId, PaymentTransfers.RewardOrder order, UUID actor) {
+        var claim = transfers.reserveReward(rewardId, order, actor);
+        var transfer = submit(claim);
+        if (claim.submit()) audit.allowed(actor, "payment-transfer", "transfer", transfer.id().toString());
+        return transfer;
     }
 
     @PreAuthorize("hasAuthority('payment.test')")

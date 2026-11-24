@@ -42,8 +42,9 @@ public class RewardController {
 
     @GetMapping("/api/rewards")
     @Operation(summary = "Lists per-report rewards without starting a payment")
-    public RewardPageResponse list(@RequestParam(defaultValue = "0") int page) {
-        return readRewardsQuery.execute(page);
+    public RewardPageResponse list(@RequestParam(defaultValue = "0") int page,
+            @AuthenticationPrincipal AccountUserDetails account) {
+        return readRewardsQuery.execute(page, account.getAccountId(), !account.hasPermission("reward.read"));
     }
 
     @PostMapping("/api/rewards/{id}/reviews")
@@ -57,6 +58,6 @@ public class RewardController {
         if (outcome.payoutId() != null) {
             recordAudit.allowed(account.getAccountId(), "payout-record", "payout", outcome.payoutId().toString());
         }
-        return readRewardsQuery.executeOne(id);
+        return readRewardsQuery.executeOne(id, account.getAccountId());
     }
 }

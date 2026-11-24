@@ -7,11 +7,13 @@ import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
 import cd.gouv.finances.signalements.report.prime.PrimeGuard;
 import cd.gouv.finances.signalements.report.validation.RewardPaymentGuard;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,17 +36,52 @@ public class PaymentTransfers {
     }
     public record Claim(Transfer transfer, boolean submit) { }
     public record Check(Transfer transfer, UUID lease) { }
+    public record RewardOrder(UUID lineId, UUID previousTransferId, String environment, String operator) { }
 
     @Transactional
     public Claim reserveLine(UUID statement, UUID line, String operator, UUID request, UUID actor) {
         beneficiaries.lock();
         var existing = byRequest(request);
         if (existing != null) {
-            if (!actor.equals(existing.actorId()) || !line.equals(existing.lineId()) || !java.util.Objects.equals(ArakaProperties.provider(operator), existing.provider()))
-                throw new ReportRejected("payment-request-conflict", 409);
-            requireEnvironment(existing);
-            return new Claim(existing, false);
+            return replay(existing, line, operator, actor);
         }
+        return reserve(statement, line, operator, request, actor);
+    }
+
+    @Transactional
+    public Claim reserveReward(UUID rewardId, RewardOrder order, UUID actor) {
+        beneficiaries.lock();
+        if (!environment().equals(order.environment())) throw new ReportRejected("payment-environment", 409);
+        var statements = jdbc.queryForList("""
+                select statement_id from app.payment_statement_line where id = ? and prime_id = ?
+                """, UUID.class, order.lineId(), rewardId);
+        if (statements.isEmpty()) throw new ReportRejected("payment-line", 404);
+
+        // One key per line and displayed attempt, shared by individual payments and selections.
+        var key = "reward-transfer:" + order.environment() + ":" + order.lineId() + ":" + order.previousTransferId();
+        var request = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+        var existing = byRequest(request);
+        if (existing != null) return replay(existing, order.lineId(), order.operator(), actor);
+
+        var attempts = jdbc.queryForList("""
+                select id from app.payment_transfer where line_id = ? and environment = ?
+                order by started_at desc, id desc limit 1
+                """, UUID.class, order.lineId(), order.environment());
+        var latest = attempts.isEmpty() ? null : attempts.getFirst();
+        if (!Objects.equals(latest, order.previousTransferId())) throw new ReportRejected("payment-transfer-stale", 409);
+        return reserve(statements.getFirst(), order.lineId(), order.operator(), request, actor);
+    }
+
+    private Claim replay(Transfer existing, UUID line, String operator, UUID actor) {
+        if (!actor.equals(existing.actorId()) || !line.equals(existing.lineId())
+                || !Objects.equals(ArakaProperties.provider(operator), existing.provider())) {
+            throw new ReportRejected("payment-request-conflict", 409);
+        }
+        requireEnvironment(existing);
+        return new Claim(existing, false);
+    }
+
+    private Claim reserve(UUID statement, UUID line, String operator, UUID request, UUID actor) {
         var candidates = jdbc.query("""
                 select l.prime_id, l.amount, l.phone, l.released, s.status, s.authorized_by, p.declarant_id,
                        p.phone = l.phone and n.phone = l.phone and n.state = 'ready' as same_beneficiary
@@ -59,9 +96,7 @@ public class PaymentTransfers {
         if (actor.equals(source.authorizedBy())) throw new ReportRejected("payment-separation", 409);
         rewards.requirePrime(source.prime());
         if (!source.sameBeneficiary() || primeGuard.suspended(source.declarant())) throw new ReportRejected("payment-beneficiary", 409);
-        if (Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists(select 1 from app.payment_attempt where line_id = ? and result = 'paid' and reference_code not like 'SIM-%')
-                """, Boolean.class, line))) throw new ReportRejected("payment-paid", 409);
+        if (primeGuard.paid(source.prime())) throw new ReportRejected("payment-paid", 409);
         if (Boolean.TRUE.equals(jdbc.queryForObject("""
                 select exists(select 1 from app.payment_transfer where line_id = ? and environment = ? and state <> 'failed')
                 """, Boolean.class, line, environment()))) throw new ReportRejected("payment-transfer-busy", 409);
