@@ -3,7 +3,6 @@ package cd.gouv.finances.signalements.access.command;
 import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.access.AccessRejected;
 import cd.gouv.finances.signalements.access.PasswordPolicy;
-import cd.gouv.finances.signalements.access.Role;
 import cd.gouv.finances.signalements.access.dto.ReplacePasswordRequest;
 import cd.gouv.finances.signalements.access.repository.UserAccountRepository;
 import cd.gouv.finances.signalements.access.security.AccountUserDetails;
