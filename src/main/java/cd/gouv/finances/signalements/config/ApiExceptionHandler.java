@@ -209,6 +209,7 @@ public class ApiExceptionHandler {
             case "assessment-decided" -> "Une décision est déjà enregistrée pour ce signalement.";
             case "assessment-vat-established" -> "L’assujettissement est déjà établi par la TVA relevée sur la facture.";
             case "assessment-normalization-review" -> "Vérifiez la conformité des éléments de normalisation présents sur la facture.";
+            case "analysis-paused" -> "L’analyse automatique est en pause.";
             case "assessment-vat-required" -> "Vérifiez l’assujettissement à la TVA avant de prendre cette décision.";
             case "assessment-duplicate-review" -> "Vérifiez le doublon avant de valider le signalement.";
             case "assessment-document" -> "Une pièce jointe est nécessaire pour valider le signalement.";

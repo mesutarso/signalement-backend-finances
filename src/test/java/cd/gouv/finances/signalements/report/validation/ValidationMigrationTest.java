@@ -52,6 +52,7 @@ class ValidationMigrationTest {
         assertThat(jdbc.queryForObject("select count(*) from app.prime where report_id is not null", Integer.class)).isEqualTo(1);
         verifyDurableJobs(jdbc);
         verifyPriorityOnOpen(jdbc);
+        verifyRetryFailedAnalyses(jdbc);
     }
 
     private static void verifyDurableJobs(JdbcTemplate jdbc) {
@@ -124,6 +125,40 @@ class ValidationMigrationTest {
         jdbc.update("update app.report set validation_state = 'validated' where id = ?", opened);
         tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(opened));
         assertThat(jdbc.queryForObject("select job_state from app.report_assessment where report_id = ?", String.class, opened)).isEqualTo("done");
+    }
+
+    private static void verifyRetryFailedAnalyses(JdbcTemplate jdbc) {
+        var recoverable = insertFailedAnalysis(jdbc, "RECOVERABLE", "doubt", "timeout", true);
+        var permanent = insertFailedAnalysis(jdbc, "PERMANENT", "doubt", "rejected-document", true);
+        var validated = insertFailedAnalysis(jdbc, "VALIDATED", "validated", "timeout", true);
+        var withoutPhoto = insertFailedAnalysis(jdbc, "NO-PHOTO", "doubt", "timeout", false);
+        var jobs = new AnalysisJobs(jdbc, Clock.systemUTC(), mock(BeneficiaryRegistry.class), mock(FixedRewards.class));
+        var tx = new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource()));
+
+        assertThat(tx.<Integer>execute(status -> jobs.retryFailed())).isEqualTo(1);
+        assertThat(tx.<Integer>execute(status -> jobs.retryFailed())).isZero();
+        assertThat(jdbc.queryForObject(
+                "select attempts from app.report_assessment where report_id = ? and job_state = 'queued' and error_code is null",
+                Integer.class, recoverable)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from app.report_assessment where report_id in (?, ?, ?) and job_state = 'done'",
+                Integer.class, permanent, validated, withoutPhoto)).isEqualTo(3);
+    }
+
+    private static UUID insertFailedAnalysis(JdbcTemplate jdbc, String reference, String state, String code, boolean hasPhoto) {
+        var report = UUID.randomUUID();
+        insertReport(jdbc, report, reference);
+        jdbc.update("update app.report set validation_state = ? where id = ?", state, report);
+        jdbc.update("insert into app.report_assessment (report_id, job_state, attempts, error_code) values (?, 'done', 3, ?)",
+                report, code);
+        if (hasPhoto) {
+            var photo = UUID.randomUUID();
+            jdbc.update("""
+                    insert into app.report_photo (id, report_id, external_id, content_type, content, fingerprint)
+                    values (?, ?, ?, 'image/png', ?, ?)
+                    """, photo, report, photo.toString(), new byte[]{1, 2, 3}, photo.toString().replace("-", "").repeat(2));
+        }
+        return report;
     }
 
     private static void insertReport(JdbcTemplate jdbc, UUID id, String reference) {

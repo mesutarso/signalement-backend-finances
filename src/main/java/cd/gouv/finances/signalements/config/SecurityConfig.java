@@ -103,6 +103,7 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.GET, "/api/declarants/overview", "/api/taxpayers/overview").hasRole("ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.GET, "/api/dossier-payments").hasAuthority("payment.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-analysis/overview").hasAuthority("import.read");
+                    requests.requestMatchers(HttpMethod.POST, "/api/report-analysis/retry").hasRole("ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.GET, "/api/taxpayers").hasAuthority("taxpayer.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/seller-files", "/api/seller-files/companies").hasAuthority("dossier.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarants").hasAuthority("declarant.read");

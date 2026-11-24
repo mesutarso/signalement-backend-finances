@@ -167,7 +167,7 @@ public class ReadReportsQuery {
             if(vat!=null) predicates.add(builder.equal(assessment.get("vatStatus"),vat));
             if(reading!=null) predicates.add(switch(reading) {
                 case "pending" -> assessment.get("jobState").in("queued","running");
-                case "failed" -> builder.isNotNull(assessment.get("errorCode"));
+                case "failed" -> builder.and(builder.equal(assessment.get("jobState"),"done"),builder.isNotNull(assessment.get("errorCode")));
                 case "unreadable" -> builder.equal(root.get("screeningReason"),"unreadable");
                 default -> builder.and(builder.equal(assessment.get("jobState"),"done"),builder.isNull(assessment.get("errorCode")));
             });

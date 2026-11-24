@@ -1,14 +1,17 @@
 package cd.gouv.finances.signalements.report.controller;
 
+import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Analysis;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Company;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Declarant;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Page;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Payment;
+import cd.gouv.finances.signalements.report.validation.AnalysisJobs;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdministrationReportsController {
     private final ReadAdministrationReports query;
+    private final AnalysisJobs jobs;
+
+    public record RetryResult(int queued) { }
 
     @GetMapping("/api/declarants/overview")
     public Page<Declarant> declarants(@RequestParam(defaultValue = "0") int page) {
@@ -42,5 +48,11 @@ public class AdministrationReportsController {
     @GetMapping("/api/report-analysis/overview")
     public Analysis analysis() {
         return query.analysis();
+    }
+
+    @PostMapping("/api/report-analysis/retry")
+    public RetryResult retryAnalysis() {
+        if (!query.analysis().enabled()) throw new ReportRejected("analysis-paused", 409);
+        return new RetryResult(jobs.retryFailed());
     }
 }

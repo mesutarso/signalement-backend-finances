@@ -56,6 +56,29 @@ public class AnalysisJobs {
         if (Boolean.TRUE.equals(eligible)) enqueue(reportId, false);
     }
 
+    @Transactional
+    public int retryFailed() {
+        beneficiaries.lock();
+        var reports = jdbc.query("""
+                select r.id from app.report r join app.report_assessment a on a.report_id = r.id
+                where r.validation_state = 'doubt' and a.job_state = 'done'
+                  and a.error_code in ('unavailable', 'timeout', 'quota', 'provider-error', 'analysis-error',
+                      'unexpected-response', 'not-configured', 'rejected-token', 'missing-key', 'rejected-key')
+                  and exists (select 1 from app.report_photo p where p.report_id = r.id)
+                  and not exists (
+                    select 1 from app.prime p join app.payment_statement_line l on l.prime_id = p.id
+                    join app.payment_attempt pay on pay.line_id = l.id where p.report_id = r.id
+                      and pay.result = 'paid' and pay.reference_code not like 'SIM-%')
+                  and not exists (
+                    select 1 from app.prime p join app.payment_statement_line l on l.prime_id = p.id
+                    join app.payment_transfer t on t.line_id = l.id where p.report_id = r.id
+                      and t.environment = 'production' and t.state in ('submitting', 'pending', 'unknown', 'paid'))
+                order by r.reported_at, r.id
+                """, (row, index) -> row.getObject(1, UUID.class));
+        reports.forEach(id -> enqueue(id, false));
+        return reports.size();
+    }
+
     /** Also used by the importer, in its transaction, so jobs cannot outlive rolled-back photos. */
     @Transactional
     public void enqueue(UUID reportId, boolean photosChanged) {
