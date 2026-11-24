@@ -3,13 +3,17 @@ package cd.gouv.finances.signalements.report.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.assignment.AssigneeDirectory;
+import cd.gouv.finances.signalements.report.entity.Qualification;
 import cd.gouv.finances.signalements.report.entity.Report;
+import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
+import cd.gouv.finances.signalements.report.repository.QualificationRepository;
 import cd.gouv.finances.signalements.report.repository.ReportAssignmentRepository;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.time.Clock;
@@ -35,6 +39,12 @@ class AssignReportCommandTest {
 
     @Mock
     private AssigneeDirectory assigneeDirectory;
+
+    @Mock
+    private QualificationRepository qualifications;
+
+    @Mock
+    private BeneficiaryRegistry beneficiaries;
 
     @Test
     void rejectsAStaleVersion() {
@@ -68,11 +78,44 @@ class AssignReportCommandTest {
         verify(reportAssignmentRepository).save(any());
     }
 
+    @Test
+    void rejectsAssignmentOfAValidatedReport() {
+        assertAssignmentLocked("validated");
+    }
+
+    @Test
+    void rejectsAssignmentOfAHistoricallyConfirmedReport() {
+        assertAssignmentLocked("legacy");
+    }
+
+    private void assertAssignmentLocked(String state) {
+        var id = UUID.randomUUID();
+        var report = mock(Report.class);
+        when(report.getValidationState()).thenReturn(state);
+        when(reportRepository.findById(id)).thenReturn(Optional.of(report));
+        if ("legacy".equals(state)) {
+            var qualification = mock(Qualification.class);
+            when(qualification.getDecision()).thenReturn(Qualification.CONFIRM);
+            when(qualifications.findFirstByReportIdOrderByRecordedAtDescIdDesc(id)).thenReturn(Optional.of(qualification));
+        }
+
+        assertThatThrownBy(() -> command().execute(id, 0, UUID.randomUUID(), "urgent", UUID.randomUUID()))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> {
+                    assertThat(error.code()).isEqualTo("assignment-validated");
+                    assertThat(error.status()).isEqualTo(409);
+                });
+        verify(beneficiaries).lock();
+        verify(reportAssignmentRepository, never()).save(any());
+        verify(reportRepository, never()).saveAndFlush(any());
+    }
+
     private AssignReportCommand command() {
         return new AssignReportCommand(
                 reportRepository,
                 reportAssignmentRepository,
                 assigneeDirectory,
+                qualifications,
+                beneficiaries,
                 Clock.fixed(Instant.parse("2026-11-06T10:00:00Z"), ZoneOffset.UTC));
     }
 

@@ -15,11 +15,11 @@ public class AssessmentEvaluation {
     public Result calculate(AssessmentStore.Snapshot assessment) {
         var reportId = assessment.reportId();
         var uniqueness = "duplicate".equals(evidence.duplicateStatus(reportId)) ? "duplicate" : assessment.uniqueness();
-        var facts = new ValidationRules.Facts(assessment.vatStatus(), assessment.normalization(),
+        var facts = new ValidationRules.Facts(assessment.vatStatus(),
                 assessment.vatCharged(), uniqueness, assessment.photoId() != null,
                 present(assessment.sellerTaxId()), evidence.unresolvedDuplicates(reportId));
         var readability = evidence.readability(reportId, assessment.photoId());
-        var markers = AssessmentEvidence.hasNormalizationMarkers(assessment);
+        var markers = AssessmentEvidence.hasCompleteNormalization(assessment);
         var screeningReason = ValidationRules.screeningReason(facts, readability, markers);
         var alreadyRewarded = rewards.alreadyRewarded(reportId);
         var decision = ValidationRules.assess(facts, alreadyRewarded, readability, markers);

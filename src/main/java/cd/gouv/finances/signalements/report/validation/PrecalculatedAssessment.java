@@ -50,7 +50,7 @@ public record PrecalculatedAssessment(
 
     private static ValidationRules.Decision forecast(ValidationRules.Facts facts, String vatStatus, boolean alreadyRewarded,
                                                      String readability, boolean markers) {
-        return ValidationRules.assess(new ValidationRules.Facts(vatStatus, facts.normalization(),
+        return ValidationRules.assess(new ValidationRules.Facts(vatStatus,
                 facts.vatCharged(), facts.uniqueness(), facts.documentPresent(), facts.taxIdPresent(),
                 facts.unresolvedDuplicates()), alreadyRewarded, readability, markers);
     }
@@ -61,8 +61,8 @@ public record PrecalculatedAssessment(
         }
         return new Criterion("normalization", "Normalisation de la facture",
                 markers ? "markers-found" : "unknown", "ocr",
-                markers ? "Éléments de normalisation repérés par OCR. Vérifiez leur conformité sur la facture."
-                        : "Aucun élément de normalisation relevé par l’OCR.");
+                markers ? "Code de vérification, numéro DEF et code DEF relevés par OCR. Vérifiez leur conformité sur la facture."
+                        : "L’OCR n’a pas relevé les trois éléments DEF sur une même lecture.");
     }
 
     private static Criterion vat(AssessmentStore.Snapshot a) {

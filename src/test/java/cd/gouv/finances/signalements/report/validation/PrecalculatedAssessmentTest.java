@@ -15,7 +15,7 @@ class PrecalculatedAssessmentTest {
 
     @Test
     void bothFiscalOutcomesStillRequireAnAgentDecision() {
-        var facts = new ValidationRules.Facts("unknown", "non-normalized", "no", "unique", true, true, false);
+        var facts = new ValidationRules.Facts("unknown", "no", "unique", true, true, false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "done"), facts, false, "READABLE", false);
 
         assertThat(result.fiscalStatusMissing()).isTrue();
@@ -26,7 +26,7 @@ class PrecalculatedAssessmentTest {
     @ParameterizedTest
     @ValueSource(strings = {"yes", "no", "unknown"})
     void displaysNormalizationMarkersAndSkipsFiscalVerification(String vatCharged) {
-        var facts = new ValidationRules.Facts("unknown", "unknown", vatCharged, "unique", true, true, false);
+        var facts = new ValidationRules.Facts("unknown", vatCharged, "unique", true, true, false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "done"), facts, false, "READABLE", true);
 
         assertThat(result.fiscalReviewRequired()).isFalse();
@@ -38,7 +38,7 @@ class PrecalculatedAssessmentTest {
 
     @Test
     void neverPromisesAConclusionWhileAnalysisIsQueued() {
-        var facts = new ValidationRules.Facts("unknown", "unknown", "yes", "unique", true, true, false);
+        var facts = new ValidationRules.Facts("unknown", "yes", "unique", true, true, false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "queued"), facts, false, "READABLE", false);
 
         assertThat(result.analysisComplete()).isFalse();
@@ -49,7 +49,7 @@ class PrecalculatedAssessmentTest {
     private static AssessmentStore.Snapshot snapshot(ValidationRules.Facts facts, String jobState) {
         return new AssessmentStore.Snapshot(UUID.randomUUID(), 1, "doubt", jobState, "Recette", UUID.randomUUID(),
                 "Vendeur fictif", "DEMO-NIF", "DEMO-FACTURE", LocalDate.of(2026, 11, 15),
-                facts.vatStatus(), null, null, null, null, facts.normalization(), null, "unknown", null,
+                facts.vatStatus(), null, null, null, null, "unknown", null, "unknown", null,
                 facts.vatCharged(), "TVA sur la pièce", facts.uniqueness(), "Recherche de recette",
                 Map.of(), List.of(), Instant.parse("2026-11-15T12:00:00Z"));
     }

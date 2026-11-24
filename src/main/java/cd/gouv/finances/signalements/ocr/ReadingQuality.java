@@ -8,12 +8,6 @@ public enum ReadingQuality {
     UNREADABLE;
 
     public static ReadingQuality from(List<ExtractedField> fields) {
-        boolean number = present(fields, DocumentField.DOCUMENT_NUMBER);
-        boolean seller = present(fields, DocumentField.SELLER_TAX_ID) || present(fields, DocumentField.SELLER_NAME);
-        boolean amount = present(fields, DocumentField.TOTAL_AMOUNT);
-        if (number && seller && amount) {
-            return READABLE;
-        }
         return from(fields, false);
     }
 
@@ -24,7 +18,9 @@ public enum ReadingQuality {
         if (number && seller && amount) {
             return READABLE;
         }
-        boolean other = present(fields, DocumentField.DOCUMENT_DATE) || present(fields, DocumentField.READ_CODE);
+        boolean other = present(fields, DocumentField.DOCUMENT_DATE) || present(fields, DocumentField.VAT_AMOUNT)
+                || present(fields, DocumentField.READ_CODE) || present(fields, DocumentField.DEF_CODE)
+                || present(fields, DocumentField.DEF_NUMBER);
         if (number || seller || amount || other || hasArticle) {
             return PARTIAL;
         }

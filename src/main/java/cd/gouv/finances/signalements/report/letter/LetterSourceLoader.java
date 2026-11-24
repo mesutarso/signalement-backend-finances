@@ -31,6 +31,7 @@ public class LetterSourceLoader {
                 ) qualification
                 join app.report report on report.id = qualification.report_id
                 where qualification.decision in ('confirm', 'wait')
+                  and qualification.proof is distinct from 'exception'
                   and nullif(trim(qualification.seller_tax_id), '') is not null
                   and not exists (
                     select 1 from app.letter_line line join app.letter letter on letter.id = line.letter_id

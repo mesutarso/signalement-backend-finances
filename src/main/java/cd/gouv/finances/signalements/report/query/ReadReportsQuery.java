@@ -3,6 +3,7 @@ package cd.gouv.finances.signalements.report.query;
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.assignment.AssigneeDirectory;
 import cd.gouv.finances.signalements.report.dto.ReportPageResponse;
+import cd.gouv.finances.signalements.report.dto.ReportWorkResponse;
 import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.entity.Qualification;
 import cd.gouv.finances.signalements.report.mapper.ReportMapper;
@@ -70,7 +71,7 @@ public class ReadReportsQuery {
                 .filter(id -> id != null)
                 .collect(Collectors.toSet()));
         var ids=found.getContent().stream().map(Report::getId).toList();
-        var work=new java.util.HashMap<UUID,cd.gouv.finances.signalements.report.dto.ReportWorkResponse>();
+        var work=new java.util.HashMap<UUID,ReportWorkResponse>();
         if(!ids.isEmpty()) {
             var marks=String.join(",",ids.stream().map(id->"?").toList());
             jdbc.query("""
@@ -79,9 +80,22 @@ public class ReadReportsQuery {
                            coalesce(nullif(btrim(a.seller_tax_id), ''), ocr.seller_tax_id) as seller_tax_id,
                            a.document_number, a.document_date, coalesce(a.extracted, '{}'::jsonb) as extracted,
                            a.vat_status, a.job_state, a.reason,
+                           case when report.validation_state in ('validated', 'legacy') and latest.decision = 'confirm'
+                                then latest.finding end as finding,
+                           case when report.validation_state = 'rejected' then
+                                    coalesce(case when latest.decision = 'reject' then latest.justification end, a.reason)
+                                when report.validation_state = 'legacy' and latest.decision = 'reject'
+                                    then latest.justification end as rejection_reason,
                            exists(select 1 from app.photo_request p where p.report_id = report.id and p.status = 'open') as photo_requested
                     from app.report report
                     left join app.report_assessment a on a.report_id = report.id
+                    left join lateral (
+                        select q.decision, q.finding, q.justification
+                        from app.qualification q
+                        where q.report_id = report.id and report.validation_state in ('validated', 'rejected', 'legacy')
+                        order by q.recorded_at desc, q.id desc
+                        limit 1
+                    ) latest on true
                     left join lateral (
                         select fields.seller_name, fields.seller_tax_id
                         from app.report_photo photo
@@ -110,13 +124,15 @@ public class ReadReportsQuery {
                         limit 1
                     ) ocr on true
                     where report.id in (%s)
-                      and (a.report_id is not null or ocr.seller_name is not null or ocr.seller_tax_id is not null)
+                      and (a.report_id is not null or latest.decision is not null
+                        or ocr.seller_name is not null or ocr.seller_tax_id is not null)
                     """.formatted(marks),(org.springframework.jdbc.core.RowCallbackHandler) r -> {
                 var extracted=mapper.readTree(r.getString("extracted"));
-                work.put(r.getObject("report_id",UUID.class),new cd.gouv.finances.signalements.report.dto.ReportWorkResponse(
+                work.put(r.getObject("report_id",UUID.class),new ReportWorkResponse(
                         r.getString("seller_name"),r.getString("seller_tax_id"),r.getString("document_number"),r.getObject("document_date",java.time.LocalDate.class),
                         extracted.path("totalAmount").asString(null),extracted.path("currency").asString(null),r.getString("vat_status"),
-                        r.getString("job_state"),r.getString("reason"),r.getBoolean("photo_requested")));
+                        r.getString("job_state"),r.getString("reason"),r.getBoolean("photo_requested"),
+                        r.getString("finding"),r.getString("rejection_reason")));
             },ids.toArray());
         }
         return new ReportPageResponse(found.getContent().stream().map(report -> {

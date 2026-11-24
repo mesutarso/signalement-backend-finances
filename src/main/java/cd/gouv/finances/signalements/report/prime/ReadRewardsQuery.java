@@ -28,7 +28,7 @@ public class ReadRewardsQuery {
             and exists (
                 select 1 from app.payment_statement_line line
                 join app.payment_statement statement on statement.id = line.statement_id
-                where line.prime_id = prime.id and not line.released and statement.status = 'authorized'
+                where line.prime_id = prime.id and not line.released and statement.status = 'authorized' and not statement.exceptional
             )
             """;
 
@@ -96,6 +96,7 @@ public class ReadRewardsQuery {
                          ) then 'paid'
                          when t.state in ('submitting', 'pending', 'unknown') then t.state
                          when t.state = 'paid' then 'test-paid'
+                         when s.exceptional then 'exceptional'
                          when s.status is distinct from 'authorized' then 'awaiting-authorization'
                          when s.authorized_by = ? then 'another-payer'
                          when p.status <> 'approved' or r.validation_state <> 'validated'

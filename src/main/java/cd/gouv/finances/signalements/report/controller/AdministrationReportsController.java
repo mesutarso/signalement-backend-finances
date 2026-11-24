@@ -34,8 +34,9 @@ public class AdministrationReportsController {
     }
 
     @GetMapping("/api/seller-files/companies")
-    public Page<Company> establishments(@RequestParam(defaultValue = "0") int page) {
-        return query.establishments(page);
+    public Page<Company> establishments(@RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(name = "q", required = false) String search) {
+        return query.establishments(page, search);
     }
 
     @GetMapping("/api/dossier-payments")

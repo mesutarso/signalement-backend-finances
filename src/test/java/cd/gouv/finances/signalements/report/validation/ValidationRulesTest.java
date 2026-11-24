@@ -12,7 +12,7 @@ class ValidationRulesTest {
 
     @Test
     void automaticallyValidatesReadableInvoicesWithVatAndWithoutNormalizationMarkers() {
-        var facts = new ValidationRules.Facts("unknown", "unknown", "yes", "unique", true, false, false);
+        var facts = new ValidationRules.Facts("unknown", "yes", "unique", true, false, false);
 
         var outcome = ValidationRules.assess(facts, false, "READABLE", false);
 
@@ -23,11 +23,25 @@ class ValidationRulesTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"defCode", "defNumber", "readCode"})
-    void leavesAnyNormalizationMarkerForAnAgentToCheck(String field) {
+    void validatesWithVatWhenAnyOfTheThreeFieldsIsMissing(String missingField) {
         var facts = facts("registered", "yes", "unique", false);
-        var markers = AssessmentEvidence.hasNormalizationMarkers(Map.of(field, "DEMO-123"));
+        var fields = new java.util.HashMap<>(Map.of("defCode", "DEF", "defNumber", "123", "readCode", "ABCD"));
+        fields.remove(missingField);
 
-        assertThat(ValidationRules.assess(facts, false, "READABLE", markers).state()).isEqualTo("doubt");
+        assertThat(ValidationRules.assess(facts, false, "READABLE", AssessmentEvidence.hasCompleteNormalization(fields)).state())
+                .isEqualTo("validated");
+
+        fields.put(missingField, " ");
+        assertThat(AssessmentEvidence.hasCompleteNormalization(fields)).isFalse();
+    }
+
+    @Test
+    void leavesTheThreeNormalizationFieldsTogetherForAnAgentToCheck() {
+        var facts = facts("registered", "yes", "unique", false);
+        var complete = AssessmentEvidence.hasCompleteNormalization(Map.of("defCode", "DEF", "defNumber", "123", "readCode", "ABCD"));
+
+        assertThat(complete).isTrue();
+        assertThat(ValidationRules.assess(facts, false, "READABLE", complete).state()).isEqualTo("doubt");
     }
 
     @ParameterizedTest
@@ -45,9 +59,11 @@ class ValidationRulesTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"PARTIAL", "UNREADABLE", "UNKNOWN"})
-    void requiresAReadableInvoiceBeforeInferringTheAbsenceOfMarkers(String readability) {
-        assertThat(ValidationRules.assess(facts("registered", "yes", "unique", false), false, readability, false).state())
-                .isEqualTo("doubt");
+    void usesTheExtractedVatAmountEvenWithoutACompleteReading(String readability) {
+        var facts = facts("registered", "yes", "unique", false);
+        assertThat(ValidationRules.assess(facts, false, readability, false).state()).isEqualTo("validated");
+        assertThat(ValidationRules.screeningReason(facts, readability, false)).isNull();
+        assertThat(ValidationRules.assess(facts, false, readability, true).state()).isEqualTo("doubt");
     }
 
     @Test
@@ -71,7 +87,7 @@ class ValidationRulesTest {
 
     @Test
     void flagsMissingTaxIdAfterAReadingWhenFiscalVerificationIsNeeded() {
-        var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", true, false, false);
+        var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", true, false, false);
         assertThat(ValidationRules.screeningReason(missing, "READABLE", false)).isEqualTo("identity-missing");
         assertThat(ValidationRules.screeningReason(missing, "PARTIAL", false)).isEqualTo("identity-missing");
         assertThat(ValidationRules.screeningReason(missing, "UNKNOWN", false)).isNull();
@@ -80,6 +96,6 @@ class ValidationRulesTest {
     }
 
     private static ValidationRules.Facts facts(String status, String charged, String uniqueness, boolean openDuplicates) {
-        return new ValidationRules.Facts(status, "unknown", charged, uniqueness, true, true, openDuplicates);
+        return new ValidationRules.Facts(status, charged, uniqueness, true, true, openDuplicates);
     }
 }

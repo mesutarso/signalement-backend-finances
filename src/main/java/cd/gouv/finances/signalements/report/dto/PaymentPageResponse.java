@@ -7,6 +7,6 @@ import java.util.UUID;
 
 public record PaymentPageResponse(List<Item> items, int page, int size, long total) {
 
-    public record Item(UUID id, String reference, String status, int total, Instant preparedAt, LocalDate dueOn) {
+    public record Item(UUID id, String reference, String status, boolean exceptional, int total, Instant preparedAt, LocalDate dueOn) {
     }
 }

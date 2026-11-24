@@ -2,7 +2,10 @@ package cd.gouv.finances.signalements.report.command;
 
 import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.assignment.AssigneeDirectory;
+import cd.gouv.finances.signalements.report.entity.Qualification;
 import cd.gouv.finances.signalements.report.entity.ReportAssignment;
+import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
+import cd.gouv.finances.signalements.report.repository.QualificationRepository;
 import cd.gouv.finances.signalements.report.repository.ReportAssignmentRepository;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.time.Clock;
@@ -23,12 +26,21 @@ public class AssignReportCommand {
     private final ReportRepository reportRepository;
     private final ReportAssignmentRepository reportAssignmentRepository;
     private final AssigneeDirectory assigneeDirectory;
+    private final QualificationRepository qualifications;
+    private final BeneficiaryRegistry beneficiaries;
     private final Clock clock;
 
     @PreAuthorize("hasAuthority('report.assign')")
     @Transactional
     public void execute(UUID reportId, long version, UUID assigneeId, String priority, UUID actorId) {
+        beneficiaries.lock();
         var report = reportRepository.findById(reportId).orElseThrow(() -> new ReportRejected("report-absent", 404));
+        var state = report.getValidationState();
+        if ("validated".equals(state) || ("legacy".equals(state)
+                && qualifications.findFirstByReportIdOrderByRecordedAtDescIdDesc(reportId)
+                        .filter(qualification -> Qualification.CONFIRM.equals(qualification.getDecision())).isPresent())) {
+            throw new ReportRejected("assignment-validated", 409);
+        }
         if (report.getVersion() != version) {
             throw new ReportRejected("stale", 409);
         }

@@ -38,7 +38,7 @@ public class ReviewAssessment {
         requirePending(current);
         requireNotScreened(current);
         if ("yes".equals(current.vatCharged())) throw new ReportRejected("assessment-vat-established", 409);
-        if (AssessmentEvidence.hasNormalizationMarkers(current)) {
+        if (AssessmentEvidence.hasCompleteNormalization(current)) {
             throw new ReportRejected("assessment-normalization-review", 409);
         }
         require(review.vatStatus(), Set.of("registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
@@ -149,7 +149,7 @@ public class ReviewAssessment {
     }
 
     private static boolean requiresFiscalReview(AssessmentStore.Snapshot assessment) {
-        return ValidationRules.requiresFiscalReview(assessment.vatCharged(), AssessmentEvidence.hasNormalizationMarkers(assessment));
+        return ValidationRules.requiresFiscalReview(assessment.vatCharged(), AssessmentEvidence.hasCompleteNormalization(assessment));
     }
 
     private void requireUnpaid(UUID reportId) {

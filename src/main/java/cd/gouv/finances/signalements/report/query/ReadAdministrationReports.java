@@ -84,15 +84,15 @@ public class ReadAdministrationReports {
 
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public Page<Company> companies(int page) {
-        return companyPage(page, false);
+        return companyPage(page, false, "");
     }
 
     @PreAuthorize("hasAuthority('dossier.read')")
-    public Page<Company> establishments(int page) {
-        return companyPage(page, true);
+    public Page<Company> establishments(int page, String search) {
+        return companyPage(page, true, search == null ? "" : search.strip());
     }
 
-    private Page<Company> companyPage(int page, boolean includeRegistryOnly) {
+    private Page<Company> companyPage(int page, boolean includeRegistryOnly, String search) {
         var registryJoin = includeRegistryOnly ? "full join" : "left join";
         var grouped = REPORTS + """
                 , sellers as (
@@ -123,10 +123,20 @@ public class ReadAdministrationReports {
                 """.formatted(registryJoin);
         var order = includeRegistryOnly ? "(registry_verified is not null) desc, total desc, tax_id, name"
                 : "total desc, tax_id, name";
-        return page(grouped, "companies", order, page, (r, n) -> new Company(
+        var relation = "companies";
+        var parameters = new Object[0];
+        if (!search.isEmpty()) {
+            relation = """
+                    (select * from companies
+                     where strpos(lower(tax_id), lower(?)) > 0
+                        or strpos(lower(name), lower(?)) > 0) as matching
+                    """;
+            parameters = new Object[] {search, search};
+        }
+        return page(grouped, relation, order, page, (r, n) -> new Company(
                 r.getString("tax_id"), r.getString("name"), r.getLong("total"), r.getLong("validated"),
                 r.getLong("rejected"), r.getLong("pending"), r.getLong("duplicates"),
-                r.getObject("registry_verified", Boolean.class)));
+                r.getObject("registry_verified", Boolean.class)), parameters);
     }
 
     @PreAuthorize("hasAuthority('payment.read') and hasAuthority('report.read')")

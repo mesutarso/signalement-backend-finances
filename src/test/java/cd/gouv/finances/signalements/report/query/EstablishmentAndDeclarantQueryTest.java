@@ -42,7 +42,7 @@ class EstablishmentAndDeclarantQueryTest {
                 """, UUID.randomUUID(), UUID.randomUUID());
 
         var overview = new ReadAdministrationReports(jdbc);
-        var establishments = overview.establishments(0);
+        var establishments = overview.establishments(0, null);
         assertThat(establishments.total()).isEqualTo(3);
         assertThat(establishments.items()).satisfiesExactly(
                 merged -> {
@@ -75,6 +75,41 @@ class EstablishmentAndDeclarantQueryTest {
         assertThat(anonymous.validatedRewardAmount()).isEqualTo(4000);
         assertThat(anonymous.rewardAmount()).isEqualTo(4000);
         assertThat(situations.execute("ANON-02").validatedRewardAmount()).isZero();
+    }
+
+    @Test
+    void searchesEstablishmentNamesAndTaxIdsBeforePagination() throws Exception {
+        var jdbc = database();
+        jdbc.update("""
+                insert into app.taxpayer (id, tax_id, name, verified, recorded_at)
+                select gen_random_uuid(), 'AC-' || n, 'Entreprise ' || n, false, now()
+                from generate_series(1, 21) n
+                """);
+        var id = report(jdbc, "VAL-SEARCH", "account", "validated");
+        jdbc.update("""
+                insert into app.taxpayer (id, tax_id, name, verified, recorded_at)
+                values (?, 'ZX-789', 'Registre Z', false, now())
+                """, UUID.randomUUID());
+        jdbc.update("""
+                insert into app.report_assessment (report_id, seller_name, seller_tax_id)
+                values (?, 'Comptoir Zan%da', 'ZX-789')
+                """, id);
+        var overview = new ReadAdministrationReports(jdbc);
+
+        var byTaxId = overview.establishments(0, "  zx-7 ");
+        assertThat(byTaxId.total()).isEqualTo(1);
+        assertThat(byTaxId.items()).singleElement().satisfies(company -> {
+            assertThat(company.taxId()).isEqualTo("ZX-789");
+            assertThat(company.validated()).isEqualTo(1);
+        });
+        assertThat(overview.establishments(0, "zan%DA").items()).isEqualTo(byTaxId.items());
+        assertThat(overview.establishments(0, "zan_da").total()).isZero();
+        assertThat(overview.establishments(0, null).items()).noneMatch(company -> "AC-9".equals(company.taxId()));
+        assertThat(overview.establishments(0, "ac-9").items()).extracting(ReadAdministrationReports.Company::taxId)
+                .containsExactly("AC-9");
+        var secondPage = overview.establishments(1, "ENTREPRISE");
+        assertThat(secondPage.total()).isEqualTo(21);
+        assertThat(secondPage.items()).hasSize(1);
     }
 
     private static JdbcTemplate database() throws Exception {

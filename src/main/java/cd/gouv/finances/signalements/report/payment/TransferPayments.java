@@ -54,6 +54,14 @@ public class TransferPayments {
 
     @Scheduled(fixedDelayString = "${app.payments.araka.reconcile-delay:15000}")
     public void reconcileDue() {
+        for (var id : transfers.exceptionDue()) {
+            try {
+                var claim = transfers.claimException(id);
+                if (claim != null) submit(claim);
+            } catch (RuntimeException error) {
+                log.warn("Exceptional payment deferred: {}", error.getClass().getSimpleName());
+            }
+        }
         for (var id : transfers.due()) {
             try { reconcile(id); }
             catch (RuntimeException error) { log.warn("Payment reconciliation deferred: {}", error.getClass().getSimpleName()); }

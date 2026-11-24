@@ -6,17 +6,25 @@ import static org.mockito.Mockito.*;
 import cd.gouv.finances.signalements.access.Role;
 import cd.gouv.finances.signalements.access.security.AccountUserDetails;
 import cd.gouv.finances.signalements.report.ReportRejected;
+import cd.gouv.finances.signalements.report.assignment.AssigneeDirectory;
 import cd.gouv.finances.signalements.report.assignment.AutomaticallyAssignReports;
 import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
 import cd.gouv.finances.signalements.report.duplicate.DuplicateLookup;
 import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
+import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
+import cd.gouv.finances.signalements.report.query.ReadReportsQuery;
+import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.sql.DriverManager;
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.support.JdbcTransactionManager;
@@ -118,18 +126,31 @@ class ScreeningMigrationTest {
         assertThat(store.read(nifOnly).state()).isEqualTo("rejected");
         assertThat(store.read(nifOnly).reason()).contains("non éligible");
 
-        var vatOnly = report(jdbc, "VAT-ONLY", "Vendeur", null, "READABLE", "vat-only");
+        var vatOnly = report(jdbc, "VAT-ONLY", null, null, "PARTIAL", "vat-only");
         var withDef = report(jdbc, "WITH-DEF", "Vendeur", null, "READABLE", "with-def");
         jdbc.update("update app.report_assessment set vat_charged='yes', extracted=?::jsonb where report_id=?",
                 "{\"vatAmount\":\"16\"}", vatOnly);
         jdbc.update("update app.report_assessment set vat_charged='yes', extracted=?::jsonb where report_id=?",
-                "{\"vatAmount\":\"16\",\"defNumber\":\"DEF-1\"}", withDef);
+                "{\"vatAmount\":\"16\",\"defNumber\":\"123\",\"defCode\":\"DEF\",\"readCode\":\"ABCD\"}", withDef);
         decision.apply(vatOnly, "automatic", null);
         decision.apply(withDef, "automatic", null);
         assertThat(store.view(vatOnly).finding()).isEqualTo("vat-without-normalization");
         assertThat(store.read(vatOnly).vatSource()).isEqualTo("ocr");
         assertThat(store.read(withDef).state()).isEqualTo("doubt");
         assertThat(store.read(withDef).vatStatus()).isEqualTo("registered");
+        var partialDef = report(jdbc, "PARTIAL-DEF", "Vendeur", null, "PARTIAL", "partial-def");
+        jdbc.update("""
+                update app.report_assessment set job_state = 'done', vat_charged = 'yes', updated_at = '2026-11-01',
+                    extracted = '{"vatAmount":"16", "readCode":"ABCD"}' where report_id = ?
+                """, partialDef);
+        jdbc.update("update app.report set validation_state = 'doubt', imported_at = '2026-11-01' where id = ?", partialDef);
+        var replay = new AnalysisReplay("2026-11-24T00:00:00Z");
+        var recheck = new RecheckScreening(jdbc, mock(BeneficiaryRegistry.class), mock(PrepareDuplicateAlerts.class),
+                duplicates, decision, replay);
+        var screening = new ScreenImportedReports(jdbc, recheck, replay);
+        screening.run();
+        assertThat(store.view(partialDef).finding()).isEqualTo("vat-without-normalization");
+        assertThat(store.read(partialDef).state()).isEqualTo("validated");
         review.decide(withDef, new AssessmentResolution(store.read(withDef).revision(), "validate", "fake-normalization"), agent);
         assertThat(store.view(withDef).finding()).isEqualTo("fake-normalization");
 
@@ -203,7 +224,7 @@ class ScreeningMigrationTest {
         var confirmedDef = report(jdbc, "CONFIRMED-DEF-NO-VAT", "Vendeur", null, "READABLE", "confirmed-def-no-vat");
         for (var id : java.util.List.of(falseDef, confirmedDef)) {
             jdbc.update("update app.report_assessment set vat_charged = 'no', extracted = ?::jsonb where report_id = ?",
-                    "{\"defNumber\":\"DEF-2\"}", id);
+                    "{\"defNumber\":\"456\",\"defCode\":\"DEF\",\"readCode\":\"EFGH\"}", id);
             decision.apply(id, "automatic", null);
             assertThat(store.read(id).state()).isEqualTo("doubt");
             assertThat(store.read(id).vatStatus()).isEqualTo("unknown");
@@ -216,6 +237,39 @@ class ScreeningMigrationTest {
         review.decide(confirmedDef, new AssessmentResolution(store.read(confirmedDef).revision(), "reject", "normalized"), agent);
         assertThat(store.read(falseDef).state()).isEqualTo("validated");
         assertThat(store.read(confirmedDef).state()).isEqualTo("rejected");
+
+        var vatPhoto = photo(jdbc, multiple, "partial-vat", "PARTIAL");
+        var reading = jdbc.queryForObject("select id from app.document_reading where document_reference = ?",
+                UUID.class, vatPhoto.toString());
+        jdbc.update("""
+                insert into app.extracted_field (id, reading_id, name, value, present)
+                values (?, ?, 'vatAmount', '16', true)
+                """, UUID.randomUUID(), reading);
+        assertThat(new AssessmentEvidence(jdbc).selected(multiple, null)).isEqualTo(vatPhoto);
+        assertTableDecisions(jdbc, vatOnly, withDef, unreadable);
+    }
+
+    private static void assertTableDecisions(JdbcTemplate jdbc, UUID validated, UUID rejected, UUID unreadable) {
+        var repository = mock(ReportRepository.class);
+        var reports = List.of(reportRow(validated, "validated"), reportRow(rejected, "rejected"), reportRow(unreadable, "rejected"));
+        when(repository.findAll(org.mockito.ArgumentMatchers.<Specification<Report>>any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(reports));
+        var query = new ReadReportsQuery(repository, mock(AssigneeDirectory.class), jdbc, new ObjectMapper());
+        assertThat(query.execute(0, 20, false, new ReadReportsQuery.ReportSearch(null, null, null, null, false)).reports())
+                .satisfiesExactly(
+                        row -> assertThat(row.work().finding()).isEqualTo("vat-without-normalization"),
+                        row -> {
+                            assertThat(row.work().finding()).isNull();
+                            assertThat(row.work().rejectionReason()).isEqualTo("Facture déjà normalisée.");
+                        },
+                        row -> assertThat(row.work().rejectionReason()).isEqualTo(ValidationRules.UNREADABLE_MESSAGE));
+    }
+
+    private static Report reportRow(UUID id, String state) {
+        var report = mock(Report.class);
+        when(report.getId()).thenReturn(id);
+        when(report.getValidationState()).thenReturn(state);
+        return report;
     }
 
     private static UUID account(JdbcTemplate jdbc, String username, String role, boolean enabled) {

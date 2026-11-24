@@ -9,6 +9,7 @@ public record PaymentStatementResponse(
         UUID id,
         String reference,
         String status,
+        boolean exceptional,
         int total,
         Instant preparedAt,
         Instant controlledAt,

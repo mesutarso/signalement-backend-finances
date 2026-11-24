@@ -101,6 +101,7 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.POST, "/api/reports/*/supervision").hasAuthority("supervision.write");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-imports", "/api/report-imports/**").hasAuthority("import.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarants/overview", "/api/taxpayers/overview").hasRole("ADMINISTRATOR");
+                    requests.requestMatchers("/api/exception-regime", "/api/exception-regime/**").hasRole("ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.GET, "/api/dossier-payments").hasAuthority("payment.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-analysis/overview").hasAuthority("import.read");
                     requests.requestMatchers(HttpMethod.POST, "/api/report-analysis/retry").hasRole("ADMINISTRATOR");

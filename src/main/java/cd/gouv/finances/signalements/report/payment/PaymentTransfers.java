@@ -45,7 +45,7 @@ public class PaymentTransfers {
         if (existing != null) {
             return replay(existing, line, operator, actor);
         }
-        return reserve(statement, line, operator, request, actor);
+        return reserve(statement, line, operator, request, actor, false);
     }
 
     @Transactional
@@ -69,7 +69,7 @@ public class PaymentTransfers {
                 """, UUID.class, order.lineId(), order.environment());
         var latest = attempts.isEmpty() ? null : attempts.getFirst();
         if (!Objects.equals(latest, order.previousTransferId())) throw new ReportRejected("payment-transfer-stale", 409);
-        return reserve(statements.getFirst(), order.lineId(), order.operator(), request, actor);
+        return reserve(statements.getFirst(), order.lineId(), order.operator(), request, actor, false);
     }
 
     private Claim replay(Transfer existing, UUID line, String operator, UUID actor) {
@@ -81,19 +81,21 @@ public class PaymentTransfers {
         return new Claim(existing, false);
     }
 
-    private Claim reserve(UUID statement, UUID line, String operator, UUID request, UUID actor) {
+    private Claim reserve(UUID statement, UUID line, String operator, UUID request, UUID actor, boolean exceptional) {
         var candidates = jdbc.query("""
                 select l.prime_id, l.amount, l.phone, l.released, s.status, s.authorized_by, p.declarant_id,
-                       p.phone = l.phone and n.phone = l.phone and n.state = 'ready' as same_beneficiary
+                       p.phone = l.phone and n.phone = l.phone and n.state = 'ready' as same_beneficiary, s.exceptional, p.report_id, l.amount = p.amount as same_amount
                 from app.payment_statement_line l join app.payment_statement s on s.id = l.statement_id
                 join app.prime p on p.id = l.prime_id left join app.payout_number n on n.declarant_id = p.declarant_id
                 where l.id = ? and s.id = ?
                 """, (r,n) -> new Line(r.getObject(1, UUID.class), r.getBigDecimal(2), r.getString(3), r.getBoolean(4),
-                        r.getString(5), r.getObject(6, UUID.class), r.getString(7), r.getBoolean(8)), line, statement);
+                        r.getString(5), r.getObject(6, UUID.class), r.getString(7), r.getBoolean(8), r.getBoolean(9), r.getObject(10, UUID.class), r.getBoolean(11)), line, statement);
         if (candidates.isEmpty() || candidates.getFirst().released()) throw new ReportRejected("payment-line", 404);
         var source = candidates.getFirst();
         if (!"authorized".equals(source.status())) throw new ReportRejected("payment-state", 409);
-        if (actor.equals(source.authorizedBy())) throw new ReportRejected("payment-separation", 409);
+        if (source.exceptional() != exceptional) throw new ReportRejected("exception-payment-route", 409);
+        if (!exceptional && actor.equals(source.authorizedBy())) throw new ReportRejected("payment-separation", 409);
+        if (exceptional) requireExceptionalEligibility(source);
         rewards.requirePrime(source.prime());
         if (!source.sameBeneficiary() || primeGuard.suspended(source.declarant())) throw new ReportRejected("payment-beneficiary", 409);
         if (primeGuard.paid(source.prime())) throw new ReportRejected("payment-paid", 409);
@@ -101,6 +103,56 @@ public class PaymentTransfers {
                 select exists(select 1 from app.payment_transfer where line_id = ? and environment = ? and state <> 'failed')
                 """, Boolean.class, line, environment()))) throw new ReportRejected("payment-transfer-busy", 409);
         return insert(line, source.amount(), source.phone(), operator, request, actor);
+    }
+
+    private void requireExceptionalEligibility(Line source) {
+        var blocked = jdbc.queryForObject("""
+                select exists(select 1 from app.duplicate_alert d
+                    where (d.report_id = ? or d.other_report_id = ?)
+                      and (d.status = 'open' or (d.status = 'confirmed' and d.priority_report_id <> ?)))
+                    or exists(select 1 from app.report_assessment where report_id = ? and unique_invoice = 'duplicate')
+                    or (select coalesce(sum(base_points), 0) from app.point_movement where report_id = ?) > 0
+                    or not exists(select 1 from app.beneficiary_account where declarant_id = ?)
+                    or exists(select 1 from app.prime p join app.report r on r.id = p.report_id
+                        where p.declarant_id = ? and p.status <> 'withdrawn'
+                          and nullif(btrim(r.reporter_phone), '') is not null and btrim(r.reporter_phone) <> ?)
+                    or exists(select 1 from app.payment_transfer t join app.payment_statement_line l on l.id = t.line_id
+                        where l.prime_id = ? and t.environment = 'production' and t.state <> 'failed')
+                """, Boolean.class, source.report(), source.report(), source.report(), source.report(), source.report(), source.declarant(),
+                source.declarant(), source.phone(), source.prime());
+        if (!source.sameAmount() || Boolean.TRUE.equals(blocked)) throw new ReportRejected("exception-stale", 409);
+    }
+
+    public List<UUID> exceptionDue() {
+        if (!properties.configured()) return List.of();
+        return jdbc.queryForList("""
+                select i.id from app.exception_payment_item i join app.exception_payment_batch b on b.id = i.batch_id
+                where i.state = 'queued' and b.environment = ?
+                order by b.created_at, i.id limit 4
+                """, UUID.class, environment());
+    }
+
+    @Transactional
+    public Claim claimException(UUID id) {
+        beneficiaries.lock();
+        var queue = jdbc.query("""
+                select l.statement_id, l.id, i.provider, b.actor_id
+                from app.exception_payment_item i join app.exception_payment_batch b on b.id = i.batch_id
+                join app.payment_statement_line l on l.id = i.line_id
+                where i.id = ? and i.state = 'queued' and b.environment = ?
+                """, (r,n) -> new ExceptionalOrder(r.getObject(1, UUID.class), r.getObject(2, UUID.class),
+                r.getString(3), r.getObject(4, UUID.class)), id, environment());
+        if (queue.isEmpty()) return null;
+        var order = queue.getFirst();
+        try {
+            var claim = reserve(order.statement(), order.line(), order.provider(), id, order.actor(), true);
+            jdbc.update("update app.exception_payment_item set state = 'submitted' where id = ?", id);
+            return claim;
+        } catch (ReportRejected rejected) {
+            if ("payment-not-configured".equals(rejected.code())) throw rejected;
+            jdbc.update("update app.exception_payment_item set state = 'blocked', failure_code = ? where id = ?", rejected.code(), id);
+            return null;
+        }
     }
 
     @Transactional
@@ -218,5 +270,7 @@ public class PaymentTransfers {
                 r.getString("code"), r.getString("transaction_id"), r.getObject("actor_id", UUID.class),
                 r.getTimestamp("started_at").toInstant(), r.getTimestamp("updated_at").toInstant());
     }
-    private record Line(UUID prime, BigDecimal amount, String phone, boolean released, String status, UUID authorizedBy, String declarant, boolean sameBeneficiary) { }
+    private record Line(UUID prime, BigDecimal amount, String phone, boolean released, String status, UUID authorizedBy, String declarant,
+            boolean sameBeneficiary, boolean exceptional, UUID report, boolean sameAmount) { }
+    private record ExceptionalOrder(UUID statement, UUID line, String provider, UUID actor) { }
 }

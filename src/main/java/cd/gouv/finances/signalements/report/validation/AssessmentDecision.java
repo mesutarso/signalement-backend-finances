@@ -47,7 +47,7 @@ public class AssessmentDecision {
             jdbc.update("""
                     update app.report_assessment set normalization = 'non-normalized', normalization_evidence = ?
                     where report_id = ?
-                    """, "Aucun élément de normalisation relevé sur la facture lisible par OCR.", reportId);
+                    """, "Jeu de normalisation DEF incomplet dans la lecture OCR.", reportId);
         }
         record(assessment, decision, evaluated.screeningReason(), origin, actorId);
     }
@@ -102,7 +102,8 @@ public class AssessmentDecision {
                     values (?, ?, 'wait', 'verification', 'pending', ?, ?, ?, ?)
                     """, UUID.randomUUID(), id, decision.reason(), decision.reason(), actor, now);
         } else if ("validated".equals(decision.state())) {
-            var proof = "ocr".equals(assessment.vatSource()) ? "photo" : "register";
+            var proof = ExceptionalAssessment.FINDING.equals(decision.finding()) ? "exception"
+                    : "ocr".equals(assessment.vatSource()) ? "photo" : "register";
             jdbc.update("""
                     insert into app.qualification (id, report_id, decision, finding, proof, justification,
                         seller_name, seller_tax_id, document_number, issued_on, amount, actor_id, recorded_at)

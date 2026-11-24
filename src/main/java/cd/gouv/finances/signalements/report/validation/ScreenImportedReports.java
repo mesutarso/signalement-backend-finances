@@ -21,7 +21,7 @@ public class ScreenImportedReports {
         var ids = jdbc.query("""
                 select r.id from app.report r join app.report_assessment a on a.report_id=r.id
                 where r.validation_state='doubt' and a.job_state='done'
-                  and (?::timestamptz is null or a.updated_at>=? or r.imported_at>=?
+                  and (?::timestamptz is null or a.updated_at>=? or r.imported_at>=? or a.vat_charged='yes'
                     or not exists(select 1 from app.report_photo p where p.report_id=r.id))
                   and not exists(select 1 from app.assessment_event e where e.report_id=r.id and e.rule_version=?)
                   and not exists(select 1 from app.prime p join app.payment_statement_line l on l.prime_id=p.id
@@ -30,7 +30,7 @@ public class ScreenImportedReports {
                   and not exists(select 1 from app.prime p join app.payment_statement_line l on l.prime_id=p.id
                     join app.payment_transfer t on t.line_id=l.id where p.report_id=r.id
                     and t.environment='production' and t.state in ('submitting','pending','unknown'))
-                order by r.reported_at,r.id limit 25
+                order by (a.vat_charged='yes') desc,r.reported_at,r.id limit 25
                 """, (r,n) -> r.getObject(1, UUID.class), cutoff(), cutoff(), cutoff(), ValidationRules.VERSION);
         ids.forEach(screening::execute);
     }

@@ -35,7 +35,7 @@ public class ReadPaymentStatementsQuery {
         var requested = Math.max(page, 0);
         var total = jdbc.queryForObject("select count(*) from app.payment_statement", Long.class);
         var items = jdbc.query("""
-                select statement.id, statement.reference_code, statement.status,
+                select statement.id, statement.reference_code, statement.status, statement.exceptional,
                        coalesce(sum(line.amount), 0), statement.prepared_at, statement.due_on
                 from app.payment_statement statement
                 left join app.payment_statement_line line on line.statement_id = statement.id
@@ -46,9 +46,10 @@ public class ReadPaymentStatementsQuery {
                 row.getObject(1, UUID.class),
                 row.getString(2),
                 row.getString(3),
-                row.getInt(4),
-                row.getTimestamp(5).toInstant(),
-                row.getDate(6) == null ? null : row.getDate(6).toLocalDate()), SIZE, requested * (long) SIZE);
+                row.getBoolean(4),
+                row.getInt(5),
+                row.getTimestamp(6).toInstant(),
+                row.getObject(7, LocalDate.class)), SIZE, requested * (long) SIZE);
         return new PaymentPageResponse(items, requested, SIZE, total == null ? 0 : total);
     }
 
@@ -56,7 +57,7 @@ public class ReadPaymentStatementsQuery {
     @Transactional(readOnly = true)
     public PaymentStatementResponse executeOne(UUID id) {
         var rows = jdbc.query("""
-                select id, reference_code, status, prepared_at, controlled_at, visaed_at, authorized_at, due_on, reason
+                select id, reference_code, status, prepared_at, controlled_at, visaed_at, authorized_at, due_on, reason, exceptional
                 from app.payment_statement
                 where id = ?
                 """, (row, number) -> new Header(
@@ -68,7 +69,7 @@ public class ReadPaymentStatementsQuery {
                 row.getTimestamp(6) == null ? null : row.getTimestamp(6).toInstant(),
                 row.getTimestamp(7) == null ? null : row.getTimestamp(7).toInstant(),
                 row.getDate(8) == null ? null : row.getDate(8).toLocalDate(),
-                row.getString(9)), id);
+                row.getString(9), row.getBoolean(10)), id);
         if (rows.isEmpty()) {
             throw new ReportRejected("payment-absent", 404);
         }
@@ -115,6 +116,7 @@ public class ReadPaymentStatementsQuery {
                 row.id(),
                 row.reference(),
                 row.status(),
+                row.exceptional(),
                 total,
                 row.preparedAt(),
                 row.controlledAt(),
@@ -135,6 +137,7 @@ public class ReadPaymentStatementsQuery {
             Instant visaedAt,
             Instant authorizedAt,
             LocalDate dueOn,
-            String reason) {
+            String reason,
+            boolean exceptional) {
     }
 }

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class ValidationRules {
-    public static final String VERSION = "invoice-review-2026-11-24";
+    public static final String VERSION = "invoice-def-triplet-2026-11-24";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     public static final String VAT_WITHOUT_NORMALIZATION = "vat-without-normalization";
@@ -23,41 +23,38 @@ public final class ValidationRules {
 
     private ValidationRules() { }
 
-    public record Facts(String vatStatus, String normalization, String vatCharged, String uniqueness,
+    public record Facts(String vatStatus, String vatCharged, String uniqueness,
                         boolean documentPresent, boolean taxIdPresent, boolean unresolvedDuplicates) { }
     public record Decision(String state, String finding, String reason) { }
 
-    public static Decision assess(Facts facts, boolean alreadyRewarded, String readability, boolean normalizationMarkers) {
+    public static Decision assess(Facts facts, boolean alreadyRewarded, String readability, boolean completeNormalization) {
         if ("duplicate".equals(facts.uniqueness())) return new Decision("rejected", null, DUPLICATE_MESSAGE);
         if (!facts.documentPresent()) return doubt("Vérifiez les pièces du signalement.");
-        if ("UNREADABLE".equals(readability)) return doubt("Vérifiez la lisibilité de la facture avant de décider.");
         if (facts.unresolvedDuplicates()) return doubt("Un rapprochement de factures reste à vérifier.");
         if (alreadyRewarded) return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez le doublon.");
-        if (requiresFiscalReview(facts.vatCharged(), normalizationMarkers)) {
-            return switch (facts.vatStatus()) {
-                case "registered" -> doubt("Assujettissement confirmé. Vérifiez la conformité de la facture avant de décider.");
-                case "unregistered" -> doubt("L’entreprise a été identifiée comme non assujettie à la TVA.");
-                default -> doubt("Vérifiez si l’entreprise est assujettie à la TVA avant de décider.");
-            };
-        }
-        if (normalizationMarkers || "normalized".equals(facts.normalization())) {
+        if (completeNormalization) {
             return doubt("Vérifiez la conformité des éléments de normalisation avant de décider.");
         }
-        if (!"READABLE".equals(readability)) {
-            return doubt("Vérifiez les éléments de normalisation directement sur la facture.");
+        if ("yes".equals(facts.vatCharged())) {
+            return new Decision("validated", VAT_WITHOUT_NORMALIZATION, FINDINGS.get(VAT_WITHOUT_NORMALIZATION) + ".");
         }
-        return new Decision("validated", VAT_WITHOUT_NORMALIZATION, FINDINGS.get(VAT_WITHOUT_NORMALIZATION) + ".");
+        if ("UNREADABLE".equals(readability)) return doubt("Vérifiez la lisibilité de la facture avant de décider.");
+        return switch (facts.vatStatus()) {
+            case "registered" -> doubt("Assujettissement confirmé. Vérifiez la conformité de la facture avant de décider.");
+            case "unregistered" -> doubt("L’entreprise a été identifiée comme non assujettie à la TVA.");
+            default -> doubt("Vérifiez si l’entreprise est assujettie à la TVA avant de décider.");
+        };
     }
 
-    static boolean requiresFiscalReview(String vatCharged, boolean normalizationMarkers) {
-        return !"yes".equals(vatCharged) && !normalizationMarkers;
+    static boolean requiresFiscalReview(String vatCharged, boolean completeNormalization) {
+        return !"yes".equals(vatCharged) && !completeNormalization;
     }
 
-    public static String screeningReason(Facts facts, String readability, boolean normalizationMarkers) {
+    public static String screeningReason(Facts facts, String readability, boolean completeNormalization) {
         if ("duplicate".equals(facts.uniqueness())) return "duplicate";
+        if (!requiresFiscalReview(facts.vatCharged(), completeNormalization)) return null;
         if ("UNREADABLE".equals(readability)) return "unreadable";
-        if (requiresFiscalReview(facts.vatCharged(), normalizationMarkers) && !facts.taxIdPresent()
-                && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) return "identity-missing";
+        if (!facts.taxIdPresent() && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) return "identity-missing";
         return null;
     }
 

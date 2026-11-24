@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ReadingQualityTest {
 
@@ -20,6 +22,13 @@ class ReadingQualityTest {
     @Test
     void aSingleUsefulFieldIsPartial() {
         assertThat(ReadingQuality.from(List.of(new ExtractedField("sellerName", "Kiosk"))))
+                .isEqualTo(ReadingQuality.PARTIAL);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"vatAmount", "readCode", "defCode", "defNumber"})
+    void aSingleDecisionFieldIsPartial(String field) {
+        assertThat(ReadingQuality.from(List.of(new ExtractedField(field, "16"))))
                 .isEqualTo(ReadingQuality.PARTIAL);
     }
 

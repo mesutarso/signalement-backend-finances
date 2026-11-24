@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class AssessmentEvidence {
+    private static final List<String> NORMALIZATION_FIELDS = List.of("readCode", "defNumber", "defCode");
     private final JdbcTemplate jdbc;
 
     public record Photo(UUID id, String contentType) { }
@@ -50,7 +51,12 @@ public class AssessmentEvidence {
     public String readability(UUID reportId, UUID selectedPhotoId) {
         if (selectedPhotoId != null) {
             var reading = latest(selectedPhotoId);
-            return reading != null && "READ".equals(reading.status()) && reading.quality() != null ? reading.quality() : "UNKNOWN";
+            if (reading == null || !"READ".equals(reading.status())) return "UNKNOWN";
+            if (!"READABLE".equals(reading.quality())
+                    && ("yes".equals(charged(reading.fields().get("vatAmount"))) || NORMALIZATION_FIELDS.stream().anyMatch(field -> !blank(reading.fields().get(field))))) {
+                return "PARTIAL";
+            }
+            return reading.quality() == null ? "UNKNOWN" : reading.quality();
         }
         var photos = photos(reportId);
         if (photos.isEmpty()) return "UNKNOWN";
@@ -66,7 +72,7 @@ public class AssessmentEvidence {
         }
         if (requested != null) return requested;
         if (photos.size() == 1) return photos.getFirst().id();
-        // Prefer a readable invoice with VAT, then a readable invoice or a partial reading with a NIF.
+        // Prefer a photo containing a usable VAT amount, then the most complete reading.
         var replacements = jdbc.query("""
                 select id from app.report_photo where report_id=? and replacement_request_id=(
                   select id from app.photo_request where report_id=? and status='linked'
@@ -82,21 +88,21 @@ public class AssessmentEvidence {
     }
 
     private static int readingPriority(Reading reading) {
-        if ("READABLE".equals(reading.quality())) {
-            return "yes".equals(charged(reading.fields().get("vatAmount"))) ? 0 : 1;
-        }
-        if ("PARTIAL".equals(reading.quality())) return blank(reading.fields().get("sellerTaxId")) ? 3 : 2;
-        return 4;
+        var vat = "yes".equals(charged(reading.fields().get("vatAmount")));
+        if ("READABLE".equals(reading.quality())) return vat ? 0 : 2;
+        if (vat) return 1;
+        if ("PARTIAL".equals(reading.quality())) return blank(reading.fields().get("sellerTaxId")) ? 4 : 3;
+        return 5;
     }
 
-    public static boolean hasNormalizationMarkers(Map<String, String> fields) {
-        return !blank(fields.get("readCode")) || !blank(fields.get("defCode")) || !blank(fields.get("defNumber"));
+    public static boolean hasCompleteNormalization(Map<String, String> fields) {
+        return NORMALIZATION_FIELDS.stream().allMatch(field -> !blank(fields.get(field)));
     }
 
-    static boolean hasNormalizationMarkers(AssessmentStore.Snapshot assessment) {
-        return hasNormalizationMarkers(assessment.extracted())
+    static boolean hasCompleteNormalization(AssessmentStore.Snapshot assessment) {
+        return hasCompleteNormalization(assessment.extracted())
                 || assessment.readings().stream().anyMatch(reading -> "READ".equals(reading.status())
-                        && hasNormalizationMarkers(reading.fields()));
+                        && hasCompleteNormalization(reading.fields()));
     }
 
     public boolean taxIdMissingAfterReading(UUID reportId, UUID selectedPhotoId) {
