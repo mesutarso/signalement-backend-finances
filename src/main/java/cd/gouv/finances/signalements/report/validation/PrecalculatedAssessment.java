@@ -6,6 +6,7 @@ import java.util.List;
 public record PrecalculatedAssessment(
         String ruleVersion,
         boolean analysisComplete,
+        boolean fiscalReviewRequired,
         boolean fiscalStatusMissing,
         boolean onlyFiscalStatusMissing,
         List<Criterion> criteria,
@@ -25,8 +26,9 @@ public record PrecalculatedAssessment(
             registered = ValidationRules.doubt("L’analyse des pièces doit être terminée avant de conclure.");
             unregistered = registered;
         }
-        var missing = "unknown".equals(facts.vatStatus()) && !"yes".equals(facts.vatCharged());
-        return new PrecalculatedAssessment(ValidationRules.VERSION, complete, missing, false,
+        var fiscalReviewRequired = ValidationRules.requiresFiscalReview(facts.vatCharged(), markers);
+        var missing = fiscalReviewRequired && "unknown".equals(facts.vatStatus());
+        return new PrecalculatedAssessment(ValidationRules.VERSION, complete, fiscalReviewRequired, missing, false,
                 List.of(new Criterion("readability", "Lisibilité de la photo", readability, "ocr",
                                 "UNREADABLE".equals(readability) ? "Une nouvelle photo est nécessaire."
                                         : "READABLE".equals(readability) ? "Les éléments essentiels de la facture ont été extraits."

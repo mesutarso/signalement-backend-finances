@@ -21,14 +21,26 @@ public class ReadReexaminationsQuery {
     @PreAuthorize("hasAuthority('reexam.read')")
     @Transactional(readOnly = true)
     public ReexaminationPageResponse execute(int page) {
+        return execute(page, null);
+    }
+
+    @PreAuthorize("hasAuthority('reexam.read')")
+    @Transactional(readOnly = true)
+    public ReexaminationPageResponse execute(int page, UUID reportId) {
         var requested = Math.max(page, 0);
-        var total = jdbc.queryForObject("select count(*) from app.reexamination", Long.class);
+        var filter = reportId == null ? "" : " where reexamination.report_id = ?";
+        var args = new java.util.ArrayList<>();
+        if (reportId != null) args.add(reportId);
+        var total = jdbc.queryForObject("select count(*) from app.reexamination reexamination" + filter, Long.class, args.toArray());
+        args.add(SIZE);
+        args.add(requested * (long) SIZE);
         var items = jdbc.query("""
                 select id, reference_code, report_reference, request_text, received_on, on_time, status, comment
                 from app.reexamination
-                order by recorded_at desc
+                %s
+                order by recorded_at desc, id desc
                 limit ? offset ?
-                """, (row, number) -> new ReexaminationPageResponse.Item(
+                """.formatted(filter), (row, number) -> new ReexaminationPageResponse.Item(
                 row.getObject(1, UUID.class),
                 row.getString(2),
                 row.getString(3),
@@ -36,7 +48,7 @@ public class ReadReexaminationsQuery {
                 row.getDate(5).toLocalDate(),
                 row.getBoolean(6),
                 row.getString(7),
-                row.getString(8)), SIZE, requested * (long) SIZE);
+                row.getString(8)), args.toArray());
         return new ReexaminationPageResponse(items, requested, SIZE, total == null ? 0 : total);
     }
 }

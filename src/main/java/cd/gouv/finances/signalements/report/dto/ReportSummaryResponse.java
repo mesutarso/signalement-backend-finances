@@ -24,6 +24,11 @@ public record ReportSummaryResponse(
         this(id,identifier,reportedAt,title,state,priority,assigneeName,version,reporterName,reporterEmail,reporterPhone,
                 validationState,screeningReason,null);
     }
+    public ReportSummaryResponse withValidationState(String validation) {
+        return new ReportSummaryResponse(id, identifier, reportedAt, title, state, priority, assigneeName, version,
+                reporterName, reporterEmail, reporterPhone, validation, screeningReason, work);
+    }
+
     public ReportSummaryResponse withWork(ReportWorkResponse work) {
         return new ReportSummaryResponse(id,identifier,reportedAt,title,state,priority,assigneeName,version,reporterName,
                 reporterEmail,reporterPhone,validationState,screeningReason,work);

@@ -21,19 +21,31 @@ public class ReadCorrectionsQuery {
     @PreAuthorize("hasAuthority('correction.read')")
     @Transactional(readOnly = true)
     public CorrectionPageResponse execute(int page) {
+        return execute(page, null);
+    }
+
+    @PreAuthorize("hasAuthority('correction.read')")
+    @Transactional(readOnly = true)
+    public CorrectionPageResponse execute(int page, UUID reportId) {
         var requested = Math.max(page, 0);
-        var total = jdbc.queryForObject("select count(*) from app.decision_correction", Long.class);
+        var filter = reportId == null ? "" : " where correction.report_id = ?";
+        var args = new java.util.ArrayList<>();
+        if (reportId != null) args.add(reportId);
+        var total = jdbc.queryForObject("select count(*) from app.decision_correction correction" + filter, Long.class, args.toArray());
+        args.add(SIZE);
+        args.add(requested * (long) SIZE);
         var items = jdbc.query("""
                 select correction.id, report.reference_code, correction.reason, correction.recorded_at
                 from app.decision_correction correction
                 join app.report report on report.id = correction.report_id
-                order by correction.recorded_at desc
+                %s
+                order by correction.recorded_at desc, correction.id desc
                 limit ? offset ?
-                """, (row, number) -> new CorrectionPageResponse.Item(
+                """.formatted(filter), (row, number) -> new CorrectionPageResponse.Item(
                 row.getObject(1, UUID.class),
                 row.getString(2),
                 row.getString(3),
-                row.getTimestamp(4).toInstant()), SIZE, requested * (long) SIZE);
+                row.getTimestamp(4).toInstant()), args.toArray());
         return new CorrectionPageResponse(items, requested, SIZE, total == null ? 0 : total);
     }
 }

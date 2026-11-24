@@ -35,8 +35,8 @@ public class ReexaminationController {
 
     @GetMapping("/api/reexaminations")
     @Operation(summary = "Lists reexamination requests without applying the thirty-day count")
-    public ReexaminationPageResponse list(@RequestParam(defaultValue = "0") int page) {
-        return readReexaminationsQuery.execute(page);
+    public ReexaminationPageResponse list(@RequestParam(defaultValue = "0") int page, @RequestParam(required = false) UUID reportId) {
+        return readReexaminationsQuery.execute(page, reportId);
     }
 
     @PostMapping("/api/reexaminations")

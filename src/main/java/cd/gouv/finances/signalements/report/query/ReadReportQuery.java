@@ -101,8 +101,13 @@ public class ReadReportQuery {
                 .map(response -> { var delivery=deliveries.get(response.id());
                     return delivery==null ? response : response.withMessage(delivery.messageId(),delivery.status(),delivery.body()); })
                 .toList();
+        var historicalDecision = "legacy".equals(report.getValidationState()) ? jdbc.queryForList("""
+                select decision from app.qualification where report_id = ?
+                order by recorded_at desc, id desc limit 1
+                """, String.class, id).stream().findFirst().orElse(null) : null;
         return ReportMapper.toResponse(
-                report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names, includeReporter), reviews);
+                report, includeReporter, names, readings, photoRequests, duplicates(id, alerts, names, includeReporter),
+                reviews, historicalDecision);
     }
 
     private List<DuplicateAlertResponse> duplicates(UUID id, List<DuplicateAlert> alerts, Map<UUID, String> names, boolean includeReporter) {

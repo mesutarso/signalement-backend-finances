@@ -6,12 +6,14 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -55,6 +57,13 @@ public class ValidationController {
         store.read(id);
         jobs.enqueue(id, false);
         return store.view(id);
+    }
+
+    @PostMapping("/api/reports/{id}/analysis/start")
+    @PreAuthorize("hasAuthority('report.analyze')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void startOnOpen(@PathVariable UUID id) {
+        jobs.prioritizeOnOpen(id);
     }
 
     @GetMapping("/api/reward-settings")

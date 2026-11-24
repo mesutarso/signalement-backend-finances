@@ -10,6 +10,8 @@ import java.util.UUID;
 public record ReportResponse(
         UUID id,
         String identifier,
+        String referenceCode,
+        String historicalDecision,
         LocalDateTime reportedAt,
         String title,
         String description,

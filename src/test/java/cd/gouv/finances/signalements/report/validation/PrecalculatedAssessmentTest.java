@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PrecalculatedAssessmentTest {
 
@@ -21,11 +23,13 @@ class PrecalculatedAssessmentTest {
         assertThat(result.ifUnregistered().state()).isEqualTo("doubt");
     }
 
-    @Test
-    void displaysNormalizationMarkersAndSkipsFiscalVerificationWhenVatWasCollected() {
-        var facts = new ValidationRules.Facts("registered", "unknown", "yes", "unique", true, true, false);
+    @ParameterizedTest
+    @ValueSource(strings = {"yes", "no", "unknown"})
+    void displaysNormalizationMarkersAndSkipsFiscalVerification(String vatCharged) {
+        var facts = new ValidationRules.Facts("unknown", "unknown", vatCharged, "unique", true, true, false);
         var result = PrecalculatedAssessment.calculate(snapshot(facts, "done"), facts, false, "READABLE", true);
 
+        assertThat(result.fiscalReviewRequired()).isFalse();
         assertThat(result.fiscalStatusMissing()).isFalse();
         assertThat(result.criteria()).filteredOn(criterion -> criterion.key().equals("normalization"))
                 .singleElement().satisfies(criterion -> assertThat(criterion.value()).isEqualTo("markers-found"));

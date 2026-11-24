@@ -4,9 +4,14 @@ import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.assignment.AssigneeDirectory;
 import cd.gouv.finances.signalements.report.dto.ReportPageResponse;
 import cd.gouv.finances.signalements.report.entity.Report;
+import cd.gouv.finances.signalements.report.entity.Qualification;
 import cd.gouv.finances.signalements.report.mapper.ReportMapper;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Set;
@@ -69,8 +74,43 @@ public class ReadReportsQuery {
         if(!ids.isEmpty()) {
             var marks=String.join(",",ids.stream().map(id->"?").toList());
             jdbc.query("""
-                    select a.*, exists(select 1 from app.photo_request p where p.report_id=a.report_id and p.status='open') as photo_requested
-                    from app.report_assessment a where a.report_id in (%s)
+                    select report.id as report_id,
+                           coalesce(nullif(btrim(a.seller_name), ''), ocr.seller_name) as seller_name,
+                           coalesce(nullif(btrim(a.seller_tax_id), ''), ocr.seller_tax_id) as seller_tax_id,
+                           a.document_number, a.document_date, coalesce(a.extracted, '{}'::jsonb) as extracted,
+                           a.vat_status, a.job_state, a.reason,
+                           exists(select 1 from app.photo_request p where p.report_id = report.id and p.status = 'open') as photo_requested
+                    from app.report report
+                    left join app.report_assessment a on a.report_id = report.id
+                    left join lateral (
+                        select fields.seller_name, fields.seller_tax_id
+                        from app.report_photo photo
+                        join lateral (
+                            select d.id, d.quality
+                            from app.document_reading d
+                            where d.document_reference = photo.id::text and d.status = 'READ'
+                            order by d.created_at desc, d.id desc
+                            limit 1
+                        ) reading on reading.quality is distinct from 'UNREADABLE'
+                        cross join lateral (
+                            select max(nullif(btrim(f.value), '')) filter (where f.name = 'sellerName') as seller_name,
+                                   max(nullif(btrim(f.value), '')) filter (where f.name = 'sellerTaxId') as seller_tax_id
+                            from app.extracted_field f
+                            where f.reading_id = reading.id and f.present and f.name in ('sellerName', 'sellerTaxId')
+                        ) fields
+                        where photo.report_id = report.id
+                          and a.job_state is distinct from 'done'
+                          and (a.photo_id is null or a.photo_id = photo.id)
+                          and ((nullif(btrim(a.seller_name), '') is null and fields.seller_name is not null)
+                            or (nullif(btrim(a.seller_tax_id), '') is null and fields.seller_tax_id is not null))
+                        order by (photo.replacement_request_id is not null) desc,
+                                 case reading.quality when 'READABLE' then 0 when 'PARTIAL' then 1 else 2 end,
+                                 (fields.seller_name is not null and fields.seller_tax_id is not null) desc,
+                                 photo.external_id, photo.id
+                        limit 1
+                    ) ocr on true
+                    where report.id in (%s)
+                      and (a.report_id is not null or ocr.seller_name is not null or ocr.seller_tax_id is not null)
                     """.formatted(marks),(org.springframework.jdbc.core.RowCallbackHandler) r -> {
                 var extracted=mapper.readTree(r.getString("extracted"));
                 work.put(r.getObject("report_id",UUID.class),new cd.gouv.finances.signalements.report.dto.ReportWorkResponse(
@@ -79,7 +119,13 @@ public class ReadReportsQuery {
                         r.getString("job_state"),r.getString("reason"),r.getBoolean("photo_requested")));
             },ids.toArray());
         }
-        return new ReportPageResponse(found.getContent().stream().map(r->ReportMapper.toSummary(r,includeReporter,names).withWork(work.get(r.getId()))).toList(),
+        return new ReportPageResponse(found.getContent().stream().map(report -> {
+                    var summary = ReportMapper.toSummary(report, includeReporter, names).withWork(work.get(report.getId()));
+                    if ("validated".equals(search.validation()) && "legacy".equals(summary.validationState())) {
+                        return summary.withValidationState("validated");
+                    }
+                    return summary;
+                }).toList(),
                 found.getNumber(),found.getSize(),found.getTotalElements());
     }
 
@@ -87,7 +133,7 @@ public class ReadReportsQuery {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         var agent = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> "ROLE_AGENT".equals(a.getAuthority()));
         var requested = agent && (search.validation() == null || search.validation().isBlank()) ? "doubt" : search.validation();
-        var selected = known(requested, Set.of("all", "queued", "analyzing", "doubt", "validated", "rejected", "legacy",
+        var selected = known(requested, Set.of("all", "untreated", "queued", "analyzing", "doubt", "validated", "rejected", "legacy",
                 "rejected-unreadable", "rejected-identity-missing", "rejected-duplicate", "completion"));
         if (agent && "legacy".equals(selected)) throw new ReportRejected("validation", 400);
         var screening = selected != null && selected.startsWith("rejected-") ? selected.substring("rejected-".length()) : null;
@@ -104,7 +150,14 @@ public class ReadReportsQuery {
             var assessment=root.join("assessment",jakarta.persistence.criteria.JoinType.LEFT);
             var predicates = new ArrayList<Predicate>();
             if (agent) predicates.add(builder.notEqual(root.get("validationState"), "legacy"));
-            if (validation != null) predicates.add(builder.equal(root.get("validationState"), validation));
+            if ("validated".equals(validation) && !agent) {
+                predicates.add(builder.or(builder.equal(root.get("validationState"), "validated"),
+                        builder.and(builder.equal(root.get("validationState"), "legacy"), latestConfirmation(root, query, builder))));
+            } else if ("untreated".equals(validation)) {
+                predicates.add(root.get("validationState").in("queued", "analyzing"));
+            } else if (validation != null) {
+                predicates.add(builder.equal(root.get("validationState"), validation));
+            }
             if (screening != null) predicates.add(builder.equal(root.get("screeningReason"), screening));
             if("completion".equals(selected)) predicates.add(builder.or(builder.isNull(assessment.get("sellerTaxId")),
                     builder.isNull(assessment.get("documentNumber")),builder.isNull(assessment.get("documentDate")),
@@ -167,6 +220,23 @@ public class ReadReportsQuery {
             }
             return predicates.isEmpty() ? builder.conjunction() : builder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private static Predicate latestConfirmation(Root<Report> report, CriteriaQuery<?> query, CriteriaBuilder builder) {
+        var confirmed = query.subquery(UUID.class);
+        var qualification = confirmed.from(Qualification.class);
+        var newer = confirmed.subquery(UUID.class);
+        var subsequent = newer.from(Qualification.class);
+        newer.select(subsequent.get("id")).where(
+                builder.equal(subsequent.get("reportId"), report.get("id")),
+                builder.or(builder.greaterThan(subsequent.<Instant>get("recordedAt"), qualification.get("recordedAt")),
+                        builder.and(builder.equal(subsequent.get("recordedAt"), qualification.get("recordedAt")),
+                                builder.greaterThan(subsequent.<UUID>get("id"), qualification.get("id")))));
+        confirmed.select(qualification.get("id")).where(
+                builder.equal(qualification.get("reportId"), report.get("id")),
+                builder.equal(qualification.get("decision"), "confirm"),
+                builder.not(builder.exists(newer)));
+        return builder.exists(confirmed);
     }
 
     private static String known(String value, Set<String> allowed) {

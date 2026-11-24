@@ -22,6 +22,28 @@ public class AnalysisJobs {
     public void lock() { beneficiaries.lock(); }
 
     @Transactional
+    public void prioritizeOnOpen(UUID reportId) {
+        beneficiaries.lock();
+        jdbc.update("""
+                insert into app.report_assessment (report_id)
+                select id from app.report where id = ? and validation_state = 'queued'
+                on conflict (report_id) do nothing
+                """, reportId);
+        jdbc.update("""
+                with first_ready as (
+                    select report_id, available_at from app.report_assessment
+                    where job_state = 'queued' and available_at <= current_timestamp
+                    order by available_at, report_id limit 1
+                )
+                update app.report_assessment a
+                set available_at = first_ready.available_at - interval '1 microsecond'
+                from first_ready
+                where a.report_id = ? and a.job_state = 'queued' and a.available_at <= current_timestamp
+                  and (a.available_at, a.report_id) > (first_ready.available_at, first_ready.report_id)
+                """, reportId);
+    }
+
+    @Transactional
     public void replay(UUID reportId, java.time.Instant before) {
         beneficiaries.lock();
         var eligible = jdbc.queryForObject("""

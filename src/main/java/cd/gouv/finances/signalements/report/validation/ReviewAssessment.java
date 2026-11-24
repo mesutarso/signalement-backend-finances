@@ -38,6 +38,9 @@ public class ReviewAssessment {
         requirePending(current);
         requireNotScreened(current);
         if ("yes".equals(current.vatCharged())) throw new ReportRejected("assessment-vat-established", 409);
+        if (AssessmentEvidence.hasNormalizationMarkers(current)) {
+            throw new ReportRejected("assessment-normalization-review", 409);
+        }
         require(review.vatStatus(), Set.of("registered", "unregistered"), fiscalEvidence(review.vatStatus(), review.vatEvidence()));
         var now = Timestamp.from(clock.instant());
         jdbc.update("""
@@ -109,7 +112,7 @@ public class ReviewAssessment {
         if (confirmedDuplicate || evidence.unresolvedDuplicates(reportId)) {
             throw new ReportRejected("assessment-duplicate-review", 409);
         }
-        if (!"yes".equals(current.vatCharged()) && !"registered".equals(current.vatStatus())) {
+        if (requiresFiscalReview(current) && !"registered".equals(current.vatStatus())) {
             throw new ReportRejected("assessment-vat-required", 409);
         }
         if (current.photoId() == null) {
@@ -126,11 +129,12 @@ public class ReviewAssessment {
         var label = ValidationRules.REJECTIONS.get(code);
         if (label == null) throw new ReportRejected("assessment-value", 400);
         if (confirmedDuplicate && !"duplicate".equals(code)) throw new ReportRejected("assessment-screened", 409);
-        if ("unregistered".equals(code) && (!"unregistered".equals(current.vatStatus()) || "yes".equals(current.vatCharged()))) {
+        var fiscalReviewRequired = requiresFiscalReview(current);
+        if ("unregistered".equals(code) && (!fiscalReviewRequired || !"unregistered".equals(current.vatStatus()))) {
             throw new ReportRejected("assessment-vat-required", 409);
         }
         if ("normalized".equals(code)) {
-            if ("unknown".equals(current.vatStatus()) && !"yes".equals(current.vatCharged())) {
+            if (fiscalReviewRequired && "unknown".equals(current.vatStatus())) {
                 throw new ReportRejected("assessment-vat-required", 409);
             }
             recordNormalization(current.reportId(), "normalized", label);
@@ -142,6 +146,10 @@ public class ReviewAssessment {
         jdbc.update("""
                 update app.report_assessment set normalization = ?, normalization_evidence = ? where report_id = ?
                 """, normalization, evidenceLabel, reportId);
+    }
+
+    private static boolean requiresFiscalReview(AssessmentStore.Snapshot assessment) {
+        return ValidationRules.requiresFiscalReview(assessment.vatCharged(), AssessmentEvidence.hasNormalizationMarkers(assessment));
     }
 
     private void requireUnpaid(UUID reportId) {

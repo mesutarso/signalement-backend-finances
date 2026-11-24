@@ -13,6 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadDeclarantSituationQuery {
 
     private static final String READERS = "hasAuthority('declarant.read')";
+    private static final String LEGACY_DECISION = """
+            left join lateral (
+                select decision from app.qualification
+                where report_id = report.id and report.validation_state = 'legacy'
+                order by recorded_at desc, id desc limit 1
+            ) latest on true
+            """;
 
     private final JdbcTemplate jdbc;
     private final ReportReference reportReference;
@@ -29,7 +36,10 @@ public class ReadDeclarantSituationQuery {
     public DeclarantSituationResponse execute(String reference) {
         var match = reportReference.require(reference);
         var declarant = jdbc.queryForObject("select nullif(btrim(reporter_user_id), '') from app.report where id = ?", String.class, match.id());
-        var reports = reports(match.id(), declarant);
+        var filter = declarant == null ? "report.id = ?" : "btrim(report.reporter_user_id) = ?";
+        var scope = declarant == null ? match.id() : declarant;
+        var reports = reports(filter, scope);
+        var validated = validationTotals(filter, scope);
         var rule = activeRule.requireActive();
         var primeAmount = declarant == null ? 0 : sum("""
                 select coalesce(sum(amount), 0) from app.prime where declarant_id = ? and report_id is not null and status <> 'withdrawn'
@@ -66,6 +76,8 @@ public class ReadDeclarantSituationQuery {
         return new DeclarantSituationResponse(
                 match.reference(),
                 primeAmount,
+                validated.count(),
+                validated.rewardAmount(),
                 paidAmount,
                 rule.ceiling(),
                 Math.max(rule.ceiling() - primeAmount, 0),
@@ -76,25 +88,33 @@ public class ReadDeclarantSituationQuery {
                 reports);
     }
 
-    private java.util.List<DeclarantSituationResponse.Report> reports(UUID reportId, String declarant) {
+    private java.util.List<DeclarantSituationResponse.Report> reports(String filter, Object scope) {
         var sql = """
-                select report.id, report.reference_code, report.state, latest.decision
+                select report.id, report.reference_code, report.state, report.validation_state, latest.decision
                 from app.report report
-                left join lateral (
-                    select decision from app.qualification
-                    where report_id = report.id
-                    order by recorded_at desc, id desc
-                    limit 1
-                ) latest on true
+                %s
                 where %s
                 order by report.reported_at desc, report.reference_code
                 limit 20
-                """.formatted(declarant == null ? "report.id = ?" : "btrim(report.reporter_user_id) = ?");
+                """.formatted(LEGACY_DECISION, filter);
         return jdbc.query(sql, (row, number) -> new DeclarantSituationResponse.Report(
                 row.getObject(1, UUID.class),
                 row.getString(2),
-                DeclarantStatus.of(row.getString(3), row.getString(4))), declarant == null ? reportId : declarant);
+                DeclarantStatus.of(row.getString(3), row.getString(4), row.getString(5))), scope);
     }
+
+    private ValidationTotals validationTotals(String filter, Object scope) {
+        return jdbc.queryForObject("""
+                select count(*) as validated_count, coalesce(sum(reward.amount), 0) as reward_amount
+                from app.report report
+                %s
+                left join app.prime reward on reward.report_id = report.id and reward.status <> 'withdrawn'
+                where %s and (report.validation_state = 'validated' or latest.decision = 'confirm')
+                """.formatted(LEGACY_DECISION, filter),
+                (row, number) -> new ValidationTotals(row.getLong("validated_count"), row.getLong("reward_amount")), scope);
+    }
+
+    private record ValidationTotals(long count, long rewardAmount) { }
 
     private int sum(String sql, Object... arguments) {
         var value = jdbc.queryForObject(sql, Long.class, arguments);

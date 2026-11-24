@@ -19,11 +19,9 @@ public class AssessmentEvaluation {
                 assessment.vatCharged(), uniqueness, assessment.photoId() != null,
                 present(assessment.sellerTaxId()), evidence.unresolvedDuplicates(reportId));
         var readability = evidence.readability(reportId, assessment.photoId());
-        var screeningReason = ValidationRules.screeningReason(facts, readability);
+        var markers = AssessmentEvidence.hasNormalizationMarkers(assessment);
+        var screeningReason = ValidationRules.screeningReason(facts, readability, markers);
         var alreadyRewarded = rewards.alreadyRewarded(reportId);
-        var markers = AssessmentEvidence.hasNormalizationMarkers(assessment.extracted())
-                || assessment.readings().stream().anyMatch(reading -> "READ".equals(reading.status())
-                        && AssessmentEvidence.hasNormalizationMarkers(reading.fields()));
         var decision = ValidationRules.assess(facts, alreadyRewarded, readability, markers);
         return new Result(decision,
                 PrecalculatedAssessment.calculate(assessment, facts, alreadyRewarded, readability, markers), screeningReason);

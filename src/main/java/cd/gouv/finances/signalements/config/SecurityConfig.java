@@ -96,12 +96,15 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.GET, "/api/reports/assignees").hasAuthority("report.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/reports", "/api/reports/**").hasAuthority("report.read");
                     requests.requestMatchers(HttpMethod.PUT, "/api/reports/*/assignment").hasAuthority("report.assign");
-                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/assessment", "/api/reports/*/assessment/fiscal-status", "/api/reports/*/duplicates/*", "/api/reports/*/photos/*/requests", "/api/reports/*/photo-requests/*/links", "/api/reports/*/photo-requests/*/deliveries").hasAuthority("report.review");
-                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/analysis", "/api/reports/*/photos/*/readings").hasAuthority("report.analyze");
+                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/assessment", "/api/reports/*/assessment/fiscal-status", "/api/reports/*/assessment/decision", "/api/reports/*/duplicates/*", "/api/reports/*/photos/*/requests", "/api/reports/*/photo-requests/*/links", "/api/reports/*/photo-requests/*/deliveries").hasAuthority("report.review");
+                    requests.requestMatchers(HttpMethod.POST, "/api/reports/*/analysis", "/api/reports/*/analysis/start", "/api/reports/*/photos/*/readings").hasAuthority("report.analyze");
                     requests.requestMatchers(HttpMethod.POST, "/api/reports/*/supervision").hasAuthority("supervision.write");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-imports", "/api/report-imports/**").hasAuthority("import.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/declarants/overview", "/api/taxpayers/overview").hasRole("ADMINISTRATOR");
+                    requests.requestMatchers(HttpMethod.GET, "/api/dossier-payments").hasAuthority("payment.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/report-analysis/overview").hasAuthority("import.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/taxpayers").hasAuthority("taxpayer.read");
-                    requests.requestMatchers(HttpMethod.GET, "/api/seller-files").hasAuthority("dossier.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/seller-files", "/api/seller-files/companies").hasAuthority("dossier.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarants").hasAuthority("declarant.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/letters", "/api/letters/**", "/api/letter-routes").hasAuthority("letter.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarant-messages").hasAuthority("message.read");

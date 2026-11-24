@@ -18,7 +18,7 @@ class ValidationRulesTest {
 
         assertThat(outcome.state()).isEqualTo("validated");
         assertThat(outcome.finding()).isEqualTo("vat-without-normalization");
-        assertThat(ValidationRules.screeningReason(facts, "READABLE")).isNull();
+        assertThat(ValidationRules.screeningReason(facts, "READABLE", false)).isNull();
     }
 
     @ParameterizedTest
@@ -32,10 +32,15 @@ class ValidationRulesTest {
 
     @ParameterizedTest
     @CsvSource({"unknown,no", "unknown,unknown", "registered,no", "unregistered,no"})
-    void leavesEveryInvoiceWithoutDetectedVatForTheAgentToDecide(String status, String charged) {
+    void directsInvoicesWithoutDetectedVatToTheAppropriateReview(String status, String charged) {
         var facts = facts(status, charged, "unique", false);
-        assertThat(ValidationRules.assess(facts, false, "READABLE", false).state()).isEqualTo("doubt");
-        assertThat(ValidationRules.assess(facts, false, "READABLE", true).state()).isEqualTo("doubt");
+        var fiscalReview = ValidationRules.assess(facts, false, "READABLE", false);
+        var normalizationReview = ValidationRules.assess(facts, false, "READABLE", true);
+
+        assertThat(fiscalReview.state()).isEqualTo("doubt");
+        assertThat(fiscalReview.reason()).containsIgnoringCase("assujetti");
+        assertThat(normalizationReview.state()).isEqualTo("doubt");
+        assertThat(normalizationReview.reason()).contains("éléments de normalisation");
     }
 
     @ParameterizedTest
@@ -49,7 +54,7 @@ class ValidationRulesTest {
     void retainsTheExistingDuplicateAndRewardProtection() {
         var duplicate = facts("registered", "yes", "duplicate", false);
         assertThat(ValidationRules.assess(duplicate, false, "READABLE", false).reason()).isEqualTo("Facture déjà signalée.");
-        assertThat(ValidationRules.screeningReason(duplicate, "READABLE")).isEqualTo("duplicate");
+        assertThat(ValidationRules.screeningReason(duplicate, "READABLE", false)).isEqualTo("duplicate");
         var open = facts("registered", "yes", "unknown", true);
         assertThat(ValidationRules.assess(open, false, "READABLE", false).state()).isEqualTo("doubt");
         assertThat(ValidationRules.assess(facts("registered", "yes", "unique", false), true, "READABLE", false).state())
@@ -67,10 +72,11 @@ class ValidationRulesTest {
     @Test
     void flagsMissingTaxIdAfterAReadingWhenFiscalVerificationIsNeeded() {
         var missing = new ValidationRules.Facts("unknown", "unknown", "unknown", "unknown", true, false, false);
-        assertThat(ValidationRules.screeningReason(missing, "READABLE")).isEqualTo("identity-missing");
-        assertThat(ValidationRules.screeningReason(missing, "PARTIAL")).isEqualTo("identity-missing");
-        assertThat(ValidationRules.screeningReason(missing, "UNKNOWN")).isNull();
-        assertThat(ValidationRules.screeningReason(missing, "UNREADABLE")).isEqualTo("unreadable");
+        assertThat(ValidationRules.screeningReason(missing, "READABLE", false)).isEqualTo("identity-missing");
+        assertThat(ValidationRules.screeningReason(missing, "PARTIAL", false)).isEqualTo("identity-missing");
+        assertThat(ValidationRules.screeningReason(missing, "UNKNOWN", false)).isNull();
+        assertThat(ValidationRules.screeningReason(missing, "UNREADABLE", false)).isEqualTo("unreadable");
+        assertThat(ValidationRules.screeningReason(missing, "READABLE", true)).isNull();
     }
 
     private static ValidationRules.Facts facts(String status, String charged, String uniqueness, boolean openDuplicates) {

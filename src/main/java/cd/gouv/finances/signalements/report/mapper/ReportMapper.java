@@ -54,10 +54,13 @@ public final class ReportMapper {
             Map<UUID, PhotoReadingResponse> readings,
             List<PhotoRequestResponse> photoRequests,
             List<DuplicateAlertResponse> duplicates,
-            List<SupervisionReview> reviews) {
+            List<SupervisionReview> reviews,
+            String historicalDecision) {
         return new ReportResponse(
                 report.getId(),
                 report.getExternalId(),
+                report.getReferenceCode(),
+                historicalDecision,
                 report.getReportedAt(),
                 report.getTitle(),
                 report.getDescription(),

@@ -32,8 +32,12 @@ public class ReportVisibility implements HandlerInterceptor {
             var readOnly = "GET".equals(request.getMethod()) && (request.getRequestURI().equals("/api/reports/" + match.group(1))
                     || request.getRequestURI().endsWith("/assessment")
                     || request.getRequestURI().matches(".*/photos/[0-9a-fA-F-]{36}$"));
+            var startOnOpen = "POST".equals(request.getMethod())
+                    && request.getRequestURI().equals("/api/reports/" + match.group(1) + "/analysis/start");
+            var availableStates = readOnly ? "validation_state <> 'legacy'"
+                    : startOnOpen ? "validation_state in ('queued', 'analyzing')" : "validation_state = 'doubt'";
             var visible = jdbc.queryForObject("select exists(select 1 from app.report where id = ? and "
-                            + (readOnly ? "validation_state <> 'legacy'" : "validation_state = 'doubt'") + ")",
+                            + availableStates + ")",
                     Boolean.class, UUID.fromString(match.group(1)));
             if (!Boolean.TRUE.equals(visible)) throw new AccessDeniedException("This dossier is not available for this action");
         }

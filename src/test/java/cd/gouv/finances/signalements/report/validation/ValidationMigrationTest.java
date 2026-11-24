@@ -51,6 +51,7 @@ class ValidationMigrationTest {
         assertThatThrownBy(() -> insertFixed(jdbc, another, "invoice-one")).hasRootCauseInstanceOf(SQLException.class);
         assertThat(jdbc.queryForObject("select count(*) from app.prime where report_id is not null", Integer.class)).isEqualTo(1);
         verifyDurableJobs(jdbc);
+        verifyPriorityOnOpen(jdbc);
     }
 
     private static void verifyDurableJobs(JdbcTemplate jdbc) {
@@ -86,6 +87,43 @@ class ValidationMigrationTest {
         assertThat(jdbc.queryForObject("select job_state from app.report_assessment where report_id=?", String.class, reportId)).isEqualTo("done");
         assertThat(jdbc.queryForObject("select validation_state from app.report where id=?", String.class, reportId)).isEqualTo("doubt");
         assertThat(jdbc.queryForObject("select count(*) from app.prime where report_id=?", Integer.class, reportId)).isZero();
+    }
+
+    private static void verifyPriorityOnOpen(JdbcTemplate jdbc) {
+        jdbc.update("update app.report_assessment set job_state = 'done'");
+        var waiting = UUID.randomUUID();
+        var opened = UUID.randomUUID();
+        var retry = UUID.randomUUID();
+        insertReport(jdbc, waiting, "WAITING");
+        insertReport(jdbc, opened, "OPENED");
+        insertReport(jdbc, retry, "BACKOFF");
+        jdbc.update("insert into app.report_assessment (report_id, available_at) values (?, now() - interval '1 day')", waiting);
+        jdbc.update("insert into app.report_assessment (report_id, attempts, available_at) values (?, 1, now() + interval '1 hour')", retry);
+        var jobs = new AnalysisJobs(jdbc, Clock.systemUTC(), mock(BeneficiaryRegistry.class), mock(FixedRewards.class));
+        var tx = new TransactionTemplate(new JdbcTransactionManager(jdbc.getDataSource()));
+
+        tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(opened));
+        var priority = jdbc.queryForObject("select available_at from app.report_assessment where report_id = ?", java.sql.Timestamp.class, opened);
+        tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(opened));
+        assertThat(jdbc.queryForObject("select available_at from app.report_assessment where report_id = ?", java.sql.Timestamp.class, opened))
+                .isEqualTo(priority);
+        assertThat(jdbc.queryForObject("select generation from app.report_assessment where report_id = ?", Long.class, opened)).isZero();
+
+        var first = tx.execute(status -> jobs.claim().orElseThrow());
+        assertThat(first.reportId()).isEqualTo(opened);
+        tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(opened));
+        assertThat(jobs.renew(first)).isTrue();
+        tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(retry));
+        assertThat(jdbc.queryForObject("select attempts from app.report_assessment where report_id = ?", Integer.class, retry)).isEqualTo(1);
+        var second = tx.execute(status -> jobs.claim().orElseThrow());
+        assertThat(second.reportId()).isEqualTo(waiting);
+        var unavailable = tx.execute(status -> jobs.claim());
+        assertThat(unavailable).isEmpty();
+
+        jdbc.update("update app.report_assessment set job_state = 'done' where report_id = ?", opened);
+        jdbc.update("update app.report set validation_state = 'validated' where id = ?", opened);
+        tx.executeWithoutResult(status -> jobs.prioritizeOnOpen(opened));
+        assertThat(jdbc.queryForObject("select job_state from app.report_assessment where report_id = ?", String.class, opened)).isEqualTo("done");
     }
 
     private static void insertReport(JdbcTemplate jdbc, UUID id, String reference) {

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +31,8 @@ public class CorrectionController {
 
     @GetMapping("/api/corrections")
     @Operation(summary = "Lists traced corrections of fallen confirmations")
-    public CorrectionPageResponse list(@RequestParam(defaultValue = "0") int page) {
-        return readCorrectionsQuery.execute(page);
+    public CorrectionPageResponse list(@RequestParam(defaultValue = "0") int page, @RequestParam(required = false) UUID reportId) {
+        return readCorrectionsQuery.execute(page, reportId);
     }
 
     @PostMapping("/api/corrections")

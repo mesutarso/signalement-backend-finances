@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class ValidationRules {
-    public static final String VERSION = "invoice-review-2026-11-23";
+    public static final String VERSION = "invoice-review-2026-11-24";
     public static final UUID AUTOMATION = UUID.fromString("00000000-0000-4000-8000-000000000044");
 
     public static final String VAT_WITHOUT_NORMALIZATION = "vat-without-normalization";
@@ -33,7 +33,7 @@ public final class ValidationRules {
         if ("UNREADABLE".equals(readability)) return doubt("Vérifiez la lisibilité de la facture avant de décider.");
         if (facts.unresolvedDuplicates()) return doubt("Un rapprochement de factures reste à vérifier.");
         if (alreadyRewarded) return doubt("Une facture de même référence a déjà donné droit à une récompense. Vérifiez le doublon.");
-        if (!"yes".equals(facts.vatCharged())) {
+        if (requiresFiscalReview(facts.vatCharged(), normalizationMarkers)) {
             return switch (facts.vatStatus()) {
                 case "registered" -> doubt("Assujettissement confirmé. Vérifiez la conformité de la facture avant de décider.");
                 case "unregistered" -> doubt("L’entreprise a été identifiée comme non assujettie à la TVA.");
@@ -49,10 +49,14 @@ public final class ValidationRules {
         return new Decision("validated", VAT_WITHOUT_NORMALIZATION, FINDINGS.get(VAT_WITHOUT_NORMALIZATION) + ".");
     }
 
-    public static String screeningReason(Facts facts, String readability) {
+    static boolean requiresFiscalReview(String vatCharged, boolean normalizationMarkers) {
+        return !"yes".equals(vatCharged) && !normalizationMarkers;
+    }
+
+    public static String screeningReason(Facts facts, String readability, boolean normalizationMarkers) {
         if ("duplicate".equals(facts.uniqueness())) return "duplicate";
         if ("UNREADABLE".equals(readability)) return "unreadable";
-        if (!"yes".equals(facts.vatCharged()) && !facts.taxIdPresent()
+        if (requiresFiscalReview(facts.vatCharged(), normalizationMarkers) && !facts.taxIdPresent()
                 && ("READABLE".equals(readability) || "PARTIAL".equals(readability))) return "identity-missing";
         return null;
     }

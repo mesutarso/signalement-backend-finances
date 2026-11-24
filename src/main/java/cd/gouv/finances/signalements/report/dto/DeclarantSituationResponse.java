@@ -6,6 +6,8 @@ import java.util.UUID;
 public record DeclarantSituationResponse(
         String reference,
         int rewardAmount,
+        long validatedCount,
+        long validatedRewardAmount,
         int paidAmount,
         int ceiling,
         int remainder,

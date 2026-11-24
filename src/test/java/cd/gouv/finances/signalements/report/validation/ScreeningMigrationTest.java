@@ -198,6 +198,24 @@ class ScreeningMigrationTest {
         review.decide(failed, new AssessmentResolution(store.read(failed).revision(), "validate", "non-normalized"), agent);
         assertThat(store.read(failed).photoId()).isEqualTo(failedPhoto);
         assertThat(store.view(failed).finding()).isEqualTo("non-normalized");
+
+        var falseDef = report(jdbc, "FALSE-DEF-NO-VAT", "Vendeur", null, "READABLE", "false-def-no-vat");
+        var confirmedDef = report(jdbc, "CONFIRMED-DEF-NO-VAT", "Vendeur", null, "READABLE", "confirmed-def-no-vat");
+        for (var id : java.util.List.of(falseDef, confirmedDef)) {
+            jdbc.update("update app.report_assessment set vat_charged = 'no', extracted = ?::jsonb where report_id = ?",
+                    "{\"defNumber\":\"DEF-2\"}", id);
+            decision.apply(id, "automatic", null);
+            assertThat(store.read(id).state()).isEqualTo("doubt");
+            assertThat(store.read(id).vatStatus()).isEqualTo("unknown");
+            assertThat(store.view(id).precalculation().fiscalReviewRequired()).isFalse();
+        }
+        assertThatThrownBy(() -> review.fiscalStatus(falseDef,
+                new FiscalStatusReview(store.read(falseDef).revision(), "registered", "Registre de recette"), agent.getAccountId()))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("assessment-normalization-review"));
+        review.decide(falseDef, new AssessmentResolution(store.read(falseDef).revision(), "validate", "fake-normalization"), agent);
+        review.decide(confirmedDef, new AssessmentResolution(store.read(confirmedDef).revision(), "reject", "normalized"), agent);
+        assertThat(store.read(falseDef).state()).isEqualTo("validated");
+        assertThat(store.read(confirmedDef).state()).isEqualTo("rejected");
     }
 
     private static UUID account(JdbcTemplate jdbc, String username, String role, boolean enabled) {

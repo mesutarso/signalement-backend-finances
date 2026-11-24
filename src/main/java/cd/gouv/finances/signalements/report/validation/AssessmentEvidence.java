@@ -93,6 +93,12 @@ public class AssessmentEvidence {
         return !blank(fields.get("readCode")) || !blank(fields.get("defCode")) || !blank(fields.get("defNumber"));
     }
 
+    static boolean hasNormalizationMarkers(AssessmentStore.Snapshot assessment) {
+        return hasNormalizationMarkers(assessment.extracted())
+                || assessment.readings().stream().anyMatch(reading -> "READ".equals(reading.status())
+                        && hasNormalizationMarkers(reading.fields()));
+    }
+
     public boolean taxIdMissingAfterReading(UUID reportId, UUID selectedPhotoId) {
         var ids = selectedPhotoId == null ? photos(reportId).stream().map(Photo::id).toList() : List.of(selectedPhotoId);
         return !ids.isEmpty() && ids.stream().map(this::latest).allMatch(r -> r != null
