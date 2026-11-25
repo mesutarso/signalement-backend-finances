@@ -1,6 +1,7 @@
 package cd.gouv.finances.signalements.report.letter;
 
 import cd.gouv.finances.signalements.report.entity.LetterLine;
+import cd.gouv.finances.signalements.report.export.CsvRows;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,8 @@ public final class LetterAnnexDocument {
             Map.entry("refusal", "Refus de facture"),
             Map.entry("fake-normalization", "Facture faussement normalisée"),
             Map.entry("vat-without-normalization", "TVA collectée sans facture normalisée"),
-            Map.entry("registered-non-normalized", "Entreprise assujettie ne délivrant pas de facture normalisée"));
+            Map.entry("registered-non-normalized", "Entreprise assujettie ne délivrant pas de facture normalisée"),
+            Map.entry("exceptional-validation", "Validation exceptionnelle"));
     private static final Map<String, String> PROOFS = Map.of(
             "photo", "Photo suffisante",
             "register", "Vérification manuelle",
@@ -38,12 +40,14 @@ public final class LetterAnnexDocument {
         if (LetterLine.COMPANY.equals(annex)) {
             builder.append("Numéro d'impôt,Nom,Constat,Preuve,Décision\n");
             for (var line : selected) {
-                builder.append(row(line.getTaxId(), line.getSellerName(), label(FINDINGS, line.getFinding()), label(PROOFS, line.getProof()), label(DECISIONS, line.getDecision())));
+                CsvRows.append(builder, ',', line.getTaxId(), line.getSellerName(), findingLabel(line.getFinding()),
+                        label(PROOFS, line.getProof()), label(DECISIONS, line.getDecision()));
             }
         } else {
             builder.append("Numéro d'impôt,Numéro de pièce,Date,Montant,Constat\n");
             for (var line : selected) {
-                builder.append(row(line.getTaxId(), line.getDocumentNumber(), line.getIssuedOn() == null ? "" : line.getIssuedOn().toString(), line.getAmount(), label(FINDINGS, line.getFinding())));
+                CsvRows.append(builder, ',', line.getTaxId(), line.getDocumentNumber(),
+                        line.getIssuedOn() == null ? "" : line.getIssuedOn().toString(), line.getAmount(), findingLabel(line.getFinding()));
             }
         }
         return builder.toString().getBytes(StandardCharsets.UTF_8);
@@ -56,22 +60,7 @@ public final class LetterAnnexDocument {
         return labels.getOrDefault(code, code);
     }
 
-    private static String row(String... cells) {
-        var builder = new StringBuilder();
-        for (var index = 0; index < cells.length; index++) {
-            if (index > 0) {
-                builder.append(',');
-            }
-            builder.append(cell(cells[index]));
-        }
-        return builder.append('\n').toString();
-    }
-
-    private static String cell(String value) {
-        var text = value == null ? "" : value;
-        if (!text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) {
-            text = "'" + text;
-        }
-        return "\"" + text.replace("\"", "\"\"") + "\"";
+    public static String findingLabel(String finding) {
+        return label(FINDINGS, finding);
     }
 }

@@ -4,6 +4,7 @@ import cd.gouv.finances.signalements.access.security.AccountUserDetails;
 import cd.gouv.finances.signalements.araka.ArakaProperties;
 import cd.gouv.finances.signalements.audit.command.RecordAudit;
 import cd.gouv.finances.signalements.report.payment.PaymentTransfers;
+import cd.gouv.finances.signalements.report.payment.ReadPaymentJournal;
 import cd.gouv.finances.signalements.report.payment.TransferPayments;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +24,7 @@ public class ArakaPaymentController {
     private final PaymentTransfers transfers;
     private final TransferPayments payments;
     private final RecordAudit audit;
+    private final ReadPaymentJournal journal;
 
     public record TestBody(@NotNull UUID requestId, @NotBlank @Size(max = 40) String phone, @NotBlank @Size(max = 16) String operator) { }
     public record SendBody(@NotNull UUID requestId, @NotNull UUID lineId, @NotBlank @Size(max = 16) String operator) { }
@@ -33,6 +35,22 @@ public class ArakaPaymentController {
     @GetMapping("/api/payment-transfers")
     @PreAuthorize("hasAuthority('payment.read')")
     public Status status(@RequestParam(required = false) UUID statementId) { return new Status(properties.sandbox() ? "sandbox" : "production", properties.configured(), statementId == null ? transfers.recent() : transfers.forStatement(statementId)); }
+
+    @GetMapping("/api/payment-transfers/journal")
+    public ReadPaymentJournal.Journal journal(@RequestParam(required = false) String environment,
+            @RequestParam(required = false) String status, @RequestParam(defaultValue = "0") int page) {
+        return journal.read(environment, status, page);
+    }
+
+    @GetMapping("/api/payment-transfers/journal/history")
+    public List<ReadPaymentJournal.Entry> history(@RequestParam String environment, @RequestParam UUID rewardId) {
+        return journal.history(environment, rewardId);
+    }
+
+    @PostMapping("/api/payment-transfers/{id}/retry")
+    public PaymentTransfers.Transfer retry(@PathVariable UUID id, @AuthenticationPrincipal AccountUserDetails account) {
+        return payments.retryFailed(id, account.getAccountId());
+    }
 
     @PostMapping("/api/payment-transfers/tests")
     public PaymentTransfers.Transfer test(@Valid @RequestBody TestBody body, @AuthenticationPrincipal AccountUserDetails account) {

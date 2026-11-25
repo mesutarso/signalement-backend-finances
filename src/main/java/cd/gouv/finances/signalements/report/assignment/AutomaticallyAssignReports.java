@@ -30,27 +30,34 @@ public class AutomaticallyAssignReports {
                 with agent as (
                     select a.id from app.user_account a
                     left join app.report work on work.assignee_id = a.id and work.validation_state = 'doubt'
+                    left join lateral (
+                        select h.recorded_at from app.report_assignment h
+                        where h.assignee_id = a.id order by h.recorded_at desc limit 1
+                    ) last_assignment on true
                     where a.role = 'AGENT' and a.enabled and a.deleted_at is null
                       and (a.locked_until is null or a.locked_until <= current_timestamp)
-                    group by a.id, a.username order by count(work.id), a.username, a.id limit 1
+                    group by a.id, a.username, last_assignment.recorded_at
+                    order by count(work.id), last_assignment.recorded_at nulls first, a.username, a.id limit 1
                 ), dossier as (
-                    select r.id from app.report r cross join agent
-                    where r.validation_state = 'doubt' and r.assignee_id is null
-                      and not exists (
+                    select r.id, r.assignee_id from app.report r cross join agent
+                    left join app.user_account previous on previous.id = r.assignee_id
+                    where r.validation_state = 'doubt' and (
+                      (r.assignee_id is null and not exists (
                         select 1 from (
                           select h.assignee_id, h.previous_assignee_id from app.report_assignment h
                           where h.report_id = r.id order by h.recorded_at desc, h.id desc limit 1
                         ) latest where latest.assignee_id is null and latest.previous_assignee_id is not null
-                      )
+                      )) or (r.assignee_id is not null and (previous.id is null or not previous.enabled
+                          or previous.deleted_at is not null or previous.role <> 'AGENT')))
                     order by r.reported_at, r.id limit 1 for update of r skip locked
                 ), assigned as (
                     update app.report r set assignee_id = agent.id, state = 'assigned', version = r.version + 1
                     from dossier cross join agent where r.id = dossier.id
-                    returning r.id, r.assignee_id, r.priority, r.state
+                    returning r.id, r.assignee_id, dossier.assignee_id as previous_assignee_id, r.priority, r.state
                 )
                 insert into app.report_assignment
-                    (id, report_id, actor_id, assignee_id, priority, previous_priority, state, recorded_at)
-                select gen_random_uuid(), id, ?, assignee_id, priority, priority, state, current_timestamp from assigned
+                    (id, report_id, actor_id, assignee_id, previous_assignee_id, priority, previous_priority, state, recorded_at)
+                select gen_random_uuid(), id, ?, assignee_id, previous_assignee_id, priority, priority, state, clock_timestamp() from assigned
                 """, ValidationRules.AUTOMATION);
     }
 }

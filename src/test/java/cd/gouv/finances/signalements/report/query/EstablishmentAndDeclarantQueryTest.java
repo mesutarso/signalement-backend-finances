@@ -4,17 +4,72 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cd.gouv.finances.signalements.report.ReportReference;
 import cd.gouv.finances.signalements.report.declarant.ReadDeclarantSituationQuery;
+import cd.gouv.finances.signalements.report.export.ReadOperationalReports;
+import cd.gouv.finances.signalements.report.export.ReadOperationalReports.Filters;
 import cd.gouv.finances.signalements.report.rule.ActiveRule;
+import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 @EnabledIfEnvironmentVariable(named = "VALIDATION_JDBC_URL", matches = ".+")
 class EstablishmentAndDeclarantQueryTest {
+
+    @Test
+    void operationalReportUsesTheSameFiltersForPreviewAndCompleteCsv() throws Exception {
+        var jdbc = database();
+        var from = LocalDate.of(2026, 11, 10);
+        var to = LocalDate.of(2026, 11, 12);
+        jdbc.update("""
+                insert into app.letter_route (tax_id, service_name, actor_id, recorded_at)
+                values ('CD-01', 'Service fiscal A', ?, now()), ('CD-02', 'Service fiscal B', ?, now())
+                """, UUID.randomUUID(), UUID.randomUUID());
+        for (int index = 0; index < 21; index++) {
+            var id = report(jdbc, "PRIVE-" + index, "prive-declarant", "validated");
+            operationalReport(jdbc, id, "CD-01", "Société \"A\"; SARL", index % 2 == 0 ? from : to);
+        }
+        operationalReport(jdbc, report(jdbc, "OUTSIDE-DATE", "other", "validated"), "CD-01", "Hors période", to.plusDays(1));
+        operationalReport(jdbc, report(jdbc, "OUTSIDE-SERVICE", "other", "validated"), "CD-02", "Autre service", from);
+        var duplicate = report(jdbc, "DUPLICATE", "other", "rejected");
+        jdbc.update("update app.report set screening_reason='duplicate' where id=?", duplicate);
+        operationalReport(jdbc, duplicate, "CD-01", "Doublon", from);
+
+        var reports = new ReadOperationalReports(new NamedParameterJdbcTemplate(jdbc));
+        var selection = new Filters(from, to, "Service fiscal A", "vat-without-normalization", " cd-01 ", null);
+        var preview = reports.preview(selection, 0);
+        assertThat(preview.total()).isEqualTo(21);
+        assertThat(preview.items()).hasSize(20).allMatch(item -> item.taxId().equals("CD-01") && item.status().equals("validated"));
+        assertThat(reports.preview(selection, 1).items()).hasSize(1);
+        assertThat(reports.options().services()).containsExactly("Service fiscal A", "Service fiscal B");
+        assertThat(reports.options().findings()).containsExactly("vat-without-normalization");
+        assertThat(reports.preview(new Filters(from, to, "Service fiscal A", null, "société", "all"), 0).total()).isEqualTo(21);
+        assertThat(reports.preview(new Filters(from, to, "Service fiscal A", null, null, "duplicate"), 0).items())
+                .singleElement().satisfies(item -> assertThat(item.id()).isEqualTo(duplicate));
+
+        var csv = new String(reports.csv(selection), StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("\uFEFF\"Reçu le\";\"Entreprise\";")
+                .contains("\"Société \"\"A\"\"; SARL\"", "\"'=facture-test\"", "TVA collectée sans facture normalisée")
+                .doesNotContain("PRIVE-", "prive-declarant", "Autre service", "Hors période", "Doublon");
+        assertThat(csv.lines()).hasSize(22);
+    }
+
+    private static void operationalReport(JdbcTemplate jdbc, UUID reportId, String taxId, String company, LocalDate received) {
+        jdbc.update("update app.report set reported_on=?, reported_at=cast(? as date) where id=?", received, received, reportId);
+        jdbc.update("""
+                insert into app.report_assessment (report_id, seller_name, seller_tax_id, document_number, extracted)
+                values (?, ?, ?, '=facture-test', '{"totalAmount":"15000","currency":"CDF"}'::jsonb)
+                """, reportId, company, taxId);
+        jdbc.update("""
+                insert into app.qualification (id, report_id, decision, finding, proof, justification, actor_id, recorded_at)
+                values (?, ?, 'confirm', 'vat-without-normalization', 'photo', 'Constat synthétique', ?, now())
+                """, UUID.randomUUID(), reportId, UUID.randomUUID());
+    }
 
     @Test
     void combinesRegisteredEstablishmentsWithFindingsAndUsesRecordedRewardAmountsForValidatedReports() throws Exception {
@@ -60,6 +115,13 @@ class EstablishmentAndDeclarantQueryTest {
                     assertThat(reportedOnly.registryVerified()).isNull();
                 });
         assertThat(overview.companies(0).total()).isEqualTo(2);
+        var company = overview.companyDetails("ab-01", null, 0);
+        assertThat(company.company()).isEqualTo(establishments.items().get(0));
+        assertThat(company.reports().items()).extracting(ReadAdministrationReports.CompanyReport::id)
+                .containsExactlyInAnyOrder(first, historical);
+        assertThat(overview.companyDetails(null, "ENTREPRISE SIGNALÉE", 0).reports().items())
+                .extracting(ReadAdministrationReports.CompanyReport::id).containsExactly(second);
+        assertThat(overview.companyDetails("ab-02", null, 0).reports().total()).isZero();
 
         var declarant = overview.declarants(0).items().getFirst();
         assertThat(declarant.total()).isEqualTo(4);
@@ -67,16 +129,41 @@ class EstablishmentAndDeclarantQueryTest {
         assertThat(declarant.validatedRewardAmount()).isEqualTo(12_500);
 
         var situations = new ReadDeclarantSituationQuery(jdbc, new ReportReference(jdbc), new ActiveRule(jdbc));
-        var situation = situations.execute("VAL-01");
+        var situation = situations.execute("VAL-01", 0, false);
         var selectedId = jdbc.queryForObject("select id from app.report where reference_code = 'VAL-01'", UUID.class);
-        assertThat(situations.execute("id:" + selectedId)).isEqualTo(situation);
+        assertThat(situations.execute("id:" + selectedId, 0, false)).isEqualTo(situation);
         assertThat(situation.validatedCount()).isEqualTo(declarant.validated());
         assertThat(situation.validatedRewardAmount()).isEqualTo(declarant.validatedRewardAmount());
         assertThat(situation.reports()).anyMatch(item -> item.id().equals(first) && item.status().equals("confirmed"));
-        var anonymous = situations.execute("ANON-01");
+        var anonymous = situations.execute("ANON-01", 0, false);
         assertThat(anonymous.validatedRewardAmount()).isEqualTo(4000);
         assertThat(anonymous.rewardAmount()).isEqualTo(4000);
-        assertThat(situations.execute("ANON-02").validatedRewardAmount()).isZero();
+        assertThat(situations.execute("ANON-02", 0, false).validatedRewardAmount()).isZero();
+    }
+
+    @Test
+    void paginatesOnlyThisDeclarantsReportsAndReturnsIdentityWhenRequested() throws Exception {
+        var jdbc = database();
+        var anchor = report(jdbc, "FAC-00", "declarant", "validated");
+        for (int index = 1; index <= 20; index++) report(jdbc, "FAC-" + index, "declarant", "queued");
+        report(jdbc, "OTHER", "unrelated", "queued");
+        jdbc.update("""
+                update app.report set reporter_name = 'Déclarant de test', reporter_phone = '0000000000',
+                    reporter_email = 'test@example.com' where id = ?
+                """, anchor);
+        var situations = new ReadDeclarantSituationQuery(jdbc, new ReportReference(jdbc), new ActiveRule(jdbc));
+        var first = situations.execute("id:" + anchor, 0, false);
+        var last = situations.execute("id:" + anchor, 1, true);
+        assertThat(first.identity()).isNull();
+        assertThat(first.reports()).hasSize(20);
+        assertThat(last.identity().name()).isEqualTo("Déclarant de test");
+        assertThat(last.identity().email()).isEqualTo("test@example.com");
+        assertThat(last.reportsPage()).isEqualTo(1);
+        assertThat(last.reportsTotal()).isEqualTo(21);
+        assertThat(last.reports()).hasSize(1);
+        assertThat(last.reports().getFirst().id()).isNotIn(first.reports().stream().map(item -> item.id()).toList());
+        assertThat(last.validatedCount()).isEqualTo(1);
+        assertThat(last.pendingCount()).isEqualTo(20);
     }
 
     @Test

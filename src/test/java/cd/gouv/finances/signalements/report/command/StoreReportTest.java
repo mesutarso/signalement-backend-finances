@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import cd.gouv.finances.signalements.report.entity.Report;
+import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
+import cd.gouv.finances.signalements.report.validation.AnalysisJobs;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import cd.gouv.finances.signalements.report.source.*;
 import java.time.*;
@@ -24,7 +26,9 @@ class StoreReportTest {
             saved.set(report);
             return report;
         });
-        var command = new StoreReport(repository, Clock.systemUTC(), mock(cd.gouv.finances.signalements.report.validation.AnalysisJobs.class));
+        var duplicates = mock(AutomaticDuplicates.class);
+        var jobs = mock(AnalysisJobs.class);
+        var command = new StoreReport(repository, Clock.systemUTC(), jobs, duplicates);
         var incoming = new SourcedReport("report-1", LocalDateTime.parse("2026-11-06T08:00:00"),
                 "Titre", "Description", "Déclarant", "test@example.com", "123", "user-1",
                 List.of(new SourcedPhoto("photo-1", "image/png", new byte[] {1})));
@@ -34,6 +38,8 @@ class StoreReportTest {
         assertThat(replay.created()).isFalse();
         assertThat(replay.createdPhotos()).isZero();
         assertThat(saved.get().getPhotos()).hasSize(1);
+        assertThat(saved.get().getSourcePhotosComplete()).isTrue();
         verify(repository, times(1)).save(any());
+        verify(duplicates).screenImported(saved.get().getId());
     }
 }

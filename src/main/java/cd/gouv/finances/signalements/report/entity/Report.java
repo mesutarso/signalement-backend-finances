@@ -60,6 +60,9 @@ public class Report {
     @Column(name = "imported_at", nullable = false)
     private Instant importedAt;
 
+    @Column(name = "source_photos_complete")
+    private Boolean sourcePhotosComplete;
+
     @Column(nullable = false, length = 32)
     private String state = "pending";
 
@@ -130,6 +133,12 @@ public class Report {
             return false;
         }
         photos.add(photo);
+        return true;
+    }
+
+    public boolean recordSourcePhotoCompleteness(boolean complete) {
+        if (Boolean.valueOf(complete).equals(sourcePhotosComplete)) return false;
+        sourcePhotosComplete = complete;
         return true;
     }
 }

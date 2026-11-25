@@ -21,4 +21,9 @@ class PermissionTest {
         assertThat(Permission.forRole(Role.DGI_OPERATIONS)).contains("letter.read", "letter.response").doesNotContain("report.identity", "user.update", "payment.execute");
         assertThat(Permission.forRole(Role.DGI)).contains("report.review").doesNotContain("report.identity");
     }
+
+    @Test void operationalReportsAreLimitedToAuthorizedInternalRoles() {
+        assertThat(Arrays.stream(Role.values()).filter(Permission.REPORT_EXPORT::grantedTo))
+                .containsExactlyInAnyOrder(Role.ADMINISTRATOR, Role.SUPERVISOR, Role.DGI);
+    }
 }

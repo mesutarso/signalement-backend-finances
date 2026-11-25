@@ -13,6 +13,7 @@ import cd.gouv.finances.signalements.report.duplicate.DuplicateLookup;
 import cd.gouv.finances.signalements.report.duplicate.PrepareDuplicateAlerts;
 import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.prime.BeneficiaryRegistry;
+import cd.gouv.finances.signalements.report.query.ReadAdministrationReports;
 import cd.gouv.finances.signalements.report.query.ReadReportsQuery;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
 import java.sql.DriverManager;
@@ -247,6 +248,53 @@ class ScreeningMigrationTest {
                 """, UUID.randomUUID(), reading);
         assertThat(new AssessmentEvidence(jdbc).selected(multiple, null)).isEqualTo(vatPhoto);
         assertTableDecisions(jdbc, vatOnly, withDef, unreadable);
+        verifyImportDuplicates(jdbc, store, duplicates);
+        verifyAssignmentTieBreak(jdbc, assign, transaction, alice, bob, disabled, admin.getAccountId());
+    }
+
+    private static void verifyImportDuplicates(JdbcTemplate jdbc, AssessmentStore store, AutomaticDuplicates duplicates) {
+        var retained = report(jdbc, "IMPORT-FIRST", null, null, null, "import-identical");
+        var candidate = report(jdbc, "IMPORT-SECOND", null, null, null, "import-identical");
+        jdbc.update("update app.report set reported_at=reported_at-interval '2 days', source_photos_complete=true where id=?", retained);
+        jdbc.update("update app.report set source_photos_complete=false where id=?", candidate);
+        jdbc.update("update app.report_assessment set job_state='queued' where report_id in (?,?)", retained, candidate);
+        duplicates.screenImported(candidate);
+        assertThat(reason(jdbc, candidate)).isNull();
+        assertThat(store.read(candidate).jobState()).isEqualTo("queued");
+
+        jdbc.update("update app.report set source_photos_complete=true where id=?", candidate);
+        duplicates.screenImported(candidate);
+        assertThat(store.read(retained).jobState()).isEqualTo("queued");
+        assertThat(store.read(candidate).jobState()).isEqualTo("done");
+        assertThat(store.read(candidate).state()).isEqualTo("rejected");
+        assertThat(reason(jdbc, candidate)).isEqualTo("duplicate");
+        assertThat(jdbc.queryForObject("""
+                select count(*) from app.duplicate_alert where criterion='photo' and priority_report_id=? and status='confirmed'
+                """, Integer.class, retained)).isEqualTo(1);
+
+        var revision = new ReadAdministrationReports(jdbc).revision();
+        assertThat(duplicates.screenImported(candidate)).isEmpty();
+        assertThat(new ReadAdministrationReports(jdbc).revision()).isEqualTo(revision);
+        photo(jdbc, retained, "import-added", null);
+        assertThat(duplicates.screenImported(retained)).containsExactly(candidate);
+    }
+
+    private static void verifyAssignmentTieBreak(JdbcTemplate jdbc, AutomaticallyAssignReports assign,
+                                                TransactionTemplate transaction, UUID alice, UUID bob, UUID disabled, UUID admin) {
+        jdbc.update("update app.report set validation_state='queued' where validation_state='doubt'");
+        var reassigned = report(jdbc, "REASSIGN", null, null, null, "reassignment-test");
+        jdbc.update("update app.report set validation_state='doubt', assignee_id=?, state='assigned' where id=?", disabled, reassigned);
+        jdbc.update("""
+                insert into app.report_assignment (id, report_id, actor_id, assignee_id, state, recorded_at)
+                values (?, ?, ?, ?, 'assigned', clock_timestamp()+interval '1 second')
+                """, UUID.randomUUID(), reassigned, admin, alice);
+        var before = new ReadAdministrationReports(jdbc).revision();
+        transaction.executeWithoutResult(status -> assign.run());
+        assertThat(jdbc.queryForObject("select assignee_id from app.report where id=?", UUID.class, reassigned)).isEqualTo(bob);
+        assertThat(jdbc.queryForObject("""
+                select previous_assignee_id from app.report_assignment where report_id=? and actor_id=?
+                """, UUID.class, reassigned, ValidationRules.AUTOMATION)).isEqualTo(disabled);
+        assertThat(new ReadAdministrationReports(jdbc).revision()).isNotEqualTo(before);
     }
 
     private static void assertTableDecisions(JdbcTemplate jdbc, UUID validated, UUID rejected, UUID unreadable) {

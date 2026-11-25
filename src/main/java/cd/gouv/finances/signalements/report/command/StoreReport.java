@@ -1,6 +1,7 @@
 package cd.gouv.finances.signalements.report.command;
 
 import cd.gouv.finances.signalements.report.duplicate.PhotoFingerprint;
+import cd.gouv.finances.signalements.report.duplicate.AutomaticDuplicates;
 import cd.gouv.finances.signalements.report.entity.Report;
 import cd.gouv.finances.signalements.report.entity.ReportPhoto;
 import cd.gouv.finances.signalements.report.repository.ReportRepository;
@@ -19,6 +20,7 @@ public class StoreReport {
     private final ReportRepository reportRepository;
     private final Clock clock;
     private final cd.gouv.finances.signalements.report.validation.AnalysisJobs analysisJobs;
+    private final AutomaticDuplicates duplicates;
 
     @Transactional
     public Outcome execute(SourcedReport incoming) {
@@ -40,17 +42,33 @@ public class StoreReport {
                     incoming.reporterUserId(),
                     clock.instant());
             var photos = addPhotos(report, incoming);
+            report.recordSourcePhotoCompleteness(complete(incoming));
             reportRepository.save(report);
             reportRepository.flush();
             analysisJobs.enqueue(report.getId(), true);
+            screen(report.getId());
             return new Outcome(true, photos);
         }
-        var photos = addPhotos(existing.get(), incoming);
-        if (photos > 0) {
+        var report = existing.get();
+        var photos = addPhotos(report, incoming);
+        var completenessChanged = report.recordSourcePhotoCompleteness(complete(incoming));
+        if (photos > 0 || completenessChanged) {
             reportRepository.flush();
-            analysisJobs.enqueue(existing.get().getId(), true);
+            if (photos > 0) analysisJobs.enqueue(report.getId(), true);
+            screen(report.getId());
         }
         return new Outcome(false, photos);
+    }
+
+    private void screen(UUID reportId) {
+        for (var reopened : duplicates.screenImported(reportId)) {
+            analysisJobs.enqueue(reopened, false);
+        }
+    }
+
+    private static boolean complete(SourcedReport incoming) {
+        return !incoming.photos().isEmpty() && incoming.photos().stream()
+                .allMatch(photo -> photo.alreadyStored() || photo.content() != null && photo.content().length > 0);
     }
 
     private static int addPhotos(Report report, SourcedReport incoming) {

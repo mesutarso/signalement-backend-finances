@@ -58,6 +58,8 @@ class PaymentTransfersMigrationTest {
                 ArakaProperties.Mode.PRODUCTION, true);
         var production = store(jdbc, registry, properties);
         var rewards = new ReadRewardsQuery(jdbc, properties);
+        var journal = new ReadPaymentJournal(jdbc, properties);
+        assertThat(journal.read("sandbox", null, 0).entries().total()).isZero();
         var firstOrder = new PaymentTransfers.RewardOrder(line, null, "production", "mpesa");
         assertThat(rewards.execute(0, actor, true).items().getFirst().payment().state()).isEqualTo("ready");
         assertThatThrownBy(() -> production.reserveReward(UUID.randomUUID(), firstOrder, actor))
@@ -80,6 +82,9 @@ class PaymentTransfersMigrationTest {
             first = left.submit() ? left : right;
         }
         production.submitted(first.transfer().id(), ArakaResult.failed("declined"));
+        assertThat(journal.read(null, "failed", 0).counts().failed()).isEqualTo(1);
+        assertThat(journal.read(null, "failed", 0).entries().items()).singleElement()
+                .satisfies(entry -> assertThat(entry.retryable()).isTrue());
         var failed = rewards.execute(0, actor, true).items().getFirst().payment();
         assertThat(failed.state()).isEqualTo("failed");
         assertThat(failed.transferId()).isEqualTo(first.transfer().id());
@@ -91,12 +96,17 @@ class PaymentTransfersMigrationTest {
                 .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-transfer-stale"));
 
         var retry = new PaymentTransfers.RewardOrder(line, failed.transferId(), "production", "mpesa");
-        var claim = production.reserveReward(prime, retry, actor);
+        var claim = production.reserveFailed(first.transfer().id(), actor);
         assertThat(claim.submit()).isTrue();
         assertThat(claim.transfer().reference()).isNotEqualTo(first.transfer().reference());
         assertThatThrownBy(()->production.reserveLine(statement,line,"mpesa",UUID.randomUUID(),actor)).isInstanceOf(ReportRejected.class);
         assertThatThrownBy(()->PaymentHold.requireNoPending(jdbc,report)).isInstanceOf(ReportRejected.class);
         production.submitted(claim.transfer().id(),ArakaResult.unknown("network-uncertain"));
+        assertThat(journal.read(null, "failed", 0).entries().total()).isZero();
+        assertThat(journal.read(null, null, 0).counts().unknown()).isEqualTo(1);
+        assertThat(production.reserveFailed(first.transfer().id(), actor).submit()).isFalse();
+        assertThatThrownBy(() -> production.reserveFailed(claim.transfer().id(), actor))
+                .isInstanceOfSatisfying(ReportRejected.class, error -> assertThat(error.code()).isEqualTo("payment-retry-not-failed"));
         assertThat(production.reserveReward(prime, retry, actor).transfer().state()).isEqualTo("unknown");
         assertThatThrownBy(() -> production.reserveReward(prime,
                 new PaymentTransfers.RewardOrder(line, claim.transfer().id(), "production", "mpesa"), actor))
@@ -112,6 +122,9 @@ class PaymentTransfersMigrationTest {
         var approved=new ArakaResult("paid","approved","T-LIVE-FIXTURE",false);
         production.checked(current,approved);production.checked(current,approved);
         assertThat(new PrimeGuard(jdbc).paid(prime)).isTrue();
+        assertThat(journal.read(null, null, 0).counts().paid()).isEqualTo(1);
+        assertThat(journal.history("production", prime)).extracting(ReadPaymentJournal.Entry::state)
+                .containsExactly("paid", "failed");
         assertThat(rewards.execute(0, actor, true).items().getFirst().payment().state()).isEqualTo("paid");
         assertThat(jdbc.queryForObject("select count(*) from app.payment_attempt where reference_code not like 'SIM-%'",Integer.class)).isEqualTo(1);
         PaymentHold.requireNoPending(jdbc,report);

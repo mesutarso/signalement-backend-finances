@@ -4,9 +4,11 @@ import cd.gouv.finances.signalements.report.ReportRejected;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Analysis;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Company;
+import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.CompanyDetails;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Declarant;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Page;
 import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.Payment;
+import cd.gouv.finances.signalements.report.query.ReadAdministrationReports.UpdateRevision;
 import cd.gouv.finances.signalements.report.validation.AnalysisJobs;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,11 @@ public class AdministrationReportsController {
 
     public record RetryResult(int queued) { }
 
+    @GetMapping("/api/report-updates")
+    public UpdateRevision revision() {
+        return query.revision();
+    }
+
     @GetMapping("/api/declarants/overview")
     public Page<Declarant> declarants(@RequestParam(defaultValue = "0") int page) {
         return query.declarants(page);
@@ -37,6 +44,13 @@ public class AdministrationReportsController {
     public Page<Company> establishments(@RequestParam(defaultValue = "0") int page,
                                         @RequestParam(name = "q", required = false) String search) {
         return query.establishments(page, search);
+    }
+
+    @GetMapping("/api/seller-files/companies/details")
+    public CompanyDetails companyDetails(@RequestParam(required = false) String nif,
+                                         @RequestParam(required = false) String name,
+                                         @RequestParam(defaultValue = "0") int page) {
+        return query.companyDetails(nif, name, page);
     }
 
     @GetMapping("/api/dossier-payments")

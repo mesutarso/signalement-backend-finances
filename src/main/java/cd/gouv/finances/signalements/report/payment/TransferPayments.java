@@ -30,6 +30,14 @@ public class TransferPayments {
         return transfer;
     }
 
+    @PreAuthorize("hasAuthority('payment.execute')")
+    public PaymentTransfers.Transfer retryFailed(UUID id, UUID actor) {
+        var claim = transfers.reserveFailed(id, actor);
+        var transfer = submit(claim);
+        if (claim.submit()) audit.allowed(actor, "payment-transfer-retry", "transfer", transfer.id().toString());
+        return transfer;
+    }
+
     @PreAuthorize("hasAuthority('payment.test')")
     public PaymentTransfers.Transfer test(String phone, String operator, UUID request, UUID actor) {
         return submit(transfers.reserveTest(phone, operator, request, actor));

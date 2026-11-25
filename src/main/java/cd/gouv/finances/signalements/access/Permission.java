@@ -11,6 +11,7 @@ public enum Permission {
     REPORT_REVIEW("report.review", "Signalements", "Compléter et qualifier une facture", Role.AGENT, Role.SUPERVISOR, Role.DGI),
     REPORT_ANALYZE("report.analyze", "Signalements", "Déclencher une lecture OCR", Role.AGENT, Role.SUPERVISOR, Role.DGI),
     REPORT_ASSIGN("report.assign", "Signalements", "Affecter les signalements", Role.SUPERVISOR),
+    REPORT_EXPORT("report.export", "Rapports", "Consulter et exporter les rapports de signalements", Role.SUPERVISOR, Role.DGI),
     IMPORT_READ("import.read", "Signalements", "Consulter les imports", Role.AGENT, Role.SUPERVISOR, Role.AUDITOR),
     IMPORT_RUN("import.run", "Signalements", "Déclencher et reprendre un import", Role.SUPERVISOR),
     TAXPAYER_READ("taxpayer.read", "Dossiers", "Consulter les contribuables", Role.AGENT, Role.SUPERVISOR, Role.AUDITOR, Role.DGI),

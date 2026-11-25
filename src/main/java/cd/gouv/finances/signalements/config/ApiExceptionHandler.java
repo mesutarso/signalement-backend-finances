@@ -191,6 +191,7 @@ public class ApiExceptionHandler {
             case "payment-transfer-busy" -> "Un versement est déjà en cours, à confirmer ou terminé pour cette ligne.";
             case "payment-transfer-stale" -> "Le statut du versement a changé. Actualisez les récompenses.";
             case "payment-transfer-absent" -> "Versement introuvable.";
+            case "payment-retry-not-failed" -> "La relance est réservée aux versements de récompense en échec confirmé.";
             case "payment-environment" -> "Ce versement appartient à un autre environnement.";
             case "payment-beneficiary" -> "Le bénéficiaire ou son numéro de paiement doit être vérifié.";
             case "payment-test-disabled" -> "Les essais de paiement sont désactivés.";

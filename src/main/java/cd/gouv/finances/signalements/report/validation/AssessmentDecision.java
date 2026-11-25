@@ -52,7 +52,7 @@ public class AssessmentDecision {
         record(assessment, decision, evaluated.screeningReason(), origin, actorId);
     }
 
-    private boolean previousAutomaticDuplicateWasCleared(UUID id) {
+    public boolean previousAutomaticDuplicateWasCleared(UUID id) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 select r.screening_reason = 'duplicate'
                     and (select origin from app.assessment_event where report_id = r.id

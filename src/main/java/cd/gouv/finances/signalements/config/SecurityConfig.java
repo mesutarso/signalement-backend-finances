@@ -104,9 +104,13 @@ public class SecurityConfig {
                     requests.requestMatchers("/api/exception-regime", "/api/exception-regime/**").hasRole("ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.GET, "/api/dossier-payments").hasAuthority("payment.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/report-analysis/overview").hasAuthority("import.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/report-updates").hasAnyAuthority("report.read", "reward.read", "payment.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/operational-reports", "/api/operational-reports/options",
+                            "/api/operational-reports/export").hasAuthority("report.export");
                     requests.requestMatchers(HttpMethod.POST, "/api/report-analysis/retry").hasRole("ADMINISTRATOR");
                     requests.requestMatchers(HttpMethod.GET, "/api/taxpayers").hasAuthority("taxpayer.read");
-                    requests.requestMatchers(HttpMethod.GET, "/api/seller-files", "/api/seller-files/companies").hasAuthority("dossier.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/seller-files", "/api/seller-files/companies",
+                            "/api/seller-files/companies/details").hasAuthority("dossier.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarants").hasAuthority("declarant.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/letters", "/api/letters/**", "/api/letter-routes").hasAuthority("letter.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/declarant-messages").hasAuthority("message.read");
@@ -114,6 +118,7 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.GET, "/api/rewards").hasAnyAuthority("reward.read", "payment.execute");
                     requests.requestMatchers(HttpMethod.GET, "/api/payout-numbers", "/api/beneficiaries").hasAuthority("reward.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/payment-statements", "/api/payment-statements/**", "/api/payment-transfers").hasAuthority("payment.read");
+                    requests.requestMatchers(HttpMethod.GET, "/api/payment-transfers/journal", "/api/payment-transfers/journal/history").hasAuthority("payment.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/payment-samples", "/api/payment-samples/**").hasAuthority("sample.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/draws").hasAuthority("draw.read");
                     requests.requestMatchers(HttpMethod.GET, "/api/reexaminations").hasAuthority("reexam.read");
@@ -141,6 +146,7 @@ public class SecurityConfig {
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-statements/*/authorizations").hasAuthority("payment.authorize");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-statements/*/transfers", "/api/payment-statements/*/attempts").hasAuthority("payment.execute");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-transfers/*/checks").hasAuthority("payment.check");
+                    requests.requestMatchers(HttpMethod.POST, "/api/payment-transfers/*/retry").hasAuthority("payment.execute");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-transfers/tests").hasAuthority("payment.test");
                     requests.requestMatchers(HttpMethod.POST, "/api/payment-samples", "/api/payment-samples/lines/*/reviews").hasAuthority("sample.review");
                     requests.requestMatchers(HttpMethod.POST, "/api/draw-tickets", "/api/draws", "/api/draws/*/publications", "/api/draws/prizes/*/handover").hasAuthority("draw.manage");

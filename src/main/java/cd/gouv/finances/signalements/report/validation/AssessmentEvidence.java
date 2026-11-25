@@ -124,7 +124,9 @@ public class AssessmentEvidence {
 
     public boolean unresolvedDuplicates(UUID reportId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists (select 1 from app.duplicate_alert where (report_id = ? or other_report_id = ?) and status = 'open')
+                select exists (select 1 from app.duplicate_alert d where (d.report_id = ? or d.other_report_id = ?) and d.status = 'open'
+                  and not exists (select 1 from app.duplicate_alert confirmed
+                    where confirmed.report_id=d.report_id and confirmed.other_report_id=d.other_report_id and confirmed.status='confirmed'))
                 """, Boolean.class, reportId, reportId));
     }
 

@@ -1,6 +1,9 @@
 package cd.gouv.finances.signalements.report.query;
 
 import cd.gouv.finances.signalements.report.ReportRejected;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -19,9 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class ReadAdministrationReports {
     private static final int SIZE = 20;
-    private static final String REPORTS = """
+    public static final String REPORTS_WITH_OUTCOME = """
             with reports as (
                 select r.*, latest.seller_name as historical_name, latest.seller_tax_id as historical_tax_id,
+                    latest.decision as historical_decision,
                     case
                         when r.validation_state = 'validated' or latest.decision = 'confirm' then 'validated'
                         when (r.validation_state = 'rejected' or latest.decision = 'reject')
@@ -42,6 +46,15 @@ public class ReadAdministrationReports {
                 ) latest on true
             )
             """;
+    private static final String SELLERS = REPORTS_WITH_OUTCOME + """
+            , sellers as (
+                select r.id, case when btrim(r.title) in (r.reference_code, r.external_id) then null else r.title end as title,
+                    outcome, r.reported_at,
+                    upper(coalesce(nullif(btrim(a.seller_tax_id), ''), nullif(btrim(historical_tax_id), ''))) as tax_id,
+                    coalesce(nullif(btrim(a.seller_name), ''), nullif(btrim(historical_name), '')) as seller_name
+                from reports r left join app.report_assessment a on a.report_id = r.id
+            )
+            """;
 
     private final JdbcTemplate jdbc;
 
@@ -53,12 +66,23 @@ public class ReadAdministrationReports {
                             long total, long validated, long validatedRewardAmount, long rejected, long duplicates, long pending) { }
     public record Company(String taxId, String name, long total, long validated, long rejected,
                           long pending, long duplicates, Boolean registryVerified) { }
+    public record CompanyReport(UUID id, String title, LocalDateTime reportedAt, String outcome) { }
+    public record CompanyDetails(Company company, Page<CompanyReport> reports) { }
     public record Payment(UUID reportId, String reference, int amount, String status, UUID statementId) { }
     public record Analysis(boolean enabled, long queued, long running, long completed, long failed) { }
+    public record UpdateRevision(String revision) { }
+
+    @PreAuthorize("hasAnyAuthority('report.read', 'reward.read', 'payment.read')")
+    public UpdateRevision revision() {
+        return jdbc.queryForObject("""
+                select (select count(*) from app.assessment_event) as decisions,
+                       (select count(*) from app.report_assignment) as assignments
+                """, (row, index) -> new UpdateRevision(row.getLong("decisions") + ":" + row.getLong("assignments")));
+    }
 
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public Page<Declarant> declarants(int page) {
-        var grouped = REPORTS + """
+        var grouped = REPORTS_WITH_OUTCOME + """
                 , grouped as (
                     select (array_agg(reports.id order by reported_at desc nulls last, reports.id desc))[1] as report_id,
                         (array_agg(reference_code order by reported_at desc nulls last, reports.id desc))[1] as reference,
@@ -93,14 +117,45 @@ public class ReadAdministrationReports {
     }
 
     private Page<Company> companyPage(int page, boolean includeRegistryOnly, String search) {
+        var order = includeRegistryOnly ? "(registry_verified is not null) desc, total desc, tax_id, name"
+                : "total desc, tax_id, name";
+        var relation = "companies";
+        var parameters = new Object[0];
+        if (!search.isEmpty()) {
+            relation = """
+                    (select * from companies
+                     where strpos(lower(tax_id), lower(?)) > 0
+                        or strpos(lower(name), lower(?)) > 0) as matching
+                    """;
+            parameters = new Object[] {search, search};
+        }
+        return page(companies(includeRegistryOnly), relation, order, page, ReadAdministrationReports::company, parameters);
+    }
+
+    @PreAuthorize("hasAuthority('dossier.read')")
+    public CompanyDetails companyDetails(String taxId, String name, int page) {
+        var nif = taxId == null ? "" : taxId.strip();
+        var byTaxId = !nif.isEmpty();
+        var key = byTaxId ? nif : name == null ? "" : name.strip();
+        if (key.isEmpty() || byTaxId && name != null && !name.isBlank()) {
+            throw new ReportRejected("validation", 400);
+        }
+        var companyScope = byTaxId ? "tax_id = upper(?)" : "tax_id is null and lower(name) = lower(?)";
+        var companies = jdbc.query(companies(true) + "select * from companies where " + companyScope
+                + " order by registry_verified desc nulls last, name limit 1", ReadAdministrationReports::company, key);
+        if (companies.isEmpty()) throw new ReportRejected("company-absent", 404);
+        var reportScope = byTaxId ? "tax_id = upper(?)" : "tax_id is null and lower(seller_name) = lower(?)";
+        var reports = page(SELLERS, "(select * from sellers where " + reportScope + ") as matching",
+                "reported_at desc nulls last, id", page, (row, index) -> new CompanyReport(
+                        row.getObject("id", UUID.class), row.getString("title"),
+                        row.getObject("reported_at", LocalDateTime.class), row.getString("outcome")), key);
+        return new CompanyDetails(companies.getFirst(), reports);
+    }
+
+    private static String companies(boolean includeRegistryOnly) {
         var registryJoin = includeRegistryOnly ? "full join" : "left join";
-        var grouped = REPORTS + """
-                , sellers as (
-                    select r.id, outcome, r.reported_at,
-                        upper(coalesce(nullif(btrim(a.seller_tax_id), ''), nullif(btrim(historical_tax_id), ''))) as tax_id,
-                        coalesce(nullif(btrim(a.seller_name), ''), nullif(btrim(historical_name), '')) as seller_name
-                    from reports r left join app.report_assessment a on a.report_id = r.id
-                ), grouped as (
+        return SELLERS + """
+                , grouped as (
                     select tax_id,
                         (array_agg(seller_name order by reported_at desc nulls last, id desc)
                             filter (where seller_name is not null))[1] as name,
@@ -121,22 +176,13 @@ public class ReadAdministrationReports {
                     from grouped c %s app.taxpayer t on lower(c.tax_id) = lower(btrim(t.tax_id))
                 )
                 """.formatted(registryJoin);
-        var order = includeRegistryOnly ? "(registry_verified is not null) desc, total desc, tax_id, name"
-                : "total desc, tax_id, name";
-        var relation = "companies";
-        var parameters = new Object[0];
-        if (!search.isEmpty()) {
-            relation = """
-                    (select * from companies
-                     where strpos(lower(tax_id), lower(?)) > 0
-                        or strpos(lower(name), lower(?)) > 0) as matching
-                    """;
-            parameters = new Object[] {search, search};
-        }
-        return page(grouped, relation, order, page, (r, n) -> new Company(
+    }
+
+    private static Company company(ResultSet r, int rowNumber) throws SQLException {
+        return new Company(
                 r.getString("tax_id"), r.getString("name"), r.getLong("total"), r.getLong("validated"),
                 r.getLong("rejected"), r.getLong("pending"), r.getLong("duplicates"),
-                r.getObject("registry_verified", Boolean.class)), parameters);
+                r.getObject("registry_verified", Boolean.class));
     }
 
     @PreAuthorize("hasAuthority('payment.read') and hasAuthority('report.read')")

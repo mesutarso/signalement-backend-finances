@@ -39,6 +39,21 @@ public class PaymentTransfers {
     public record RewardOrder(UUID lineId, UUID previousTransferId, String environment, String operator) { }
 
     @Transactional
+    public Claim reserveFailed(UUID id, UUID actor) {
+        beneficiaries.lock();
+        var failed = read(id);
+        requireEnvironment(failed);
+        if (!"failed".equals(failed.state()) || failed.lineId() == null) {
+            throw new ReportRejected("payment-retry-not-failed", 409);
+        }
+        var rewards = jdbc.queryForList("select prime_id from app.payment_statement_line where id=?",
+                UUID.class, failed.lineId());
+        if (rewards.isEmpty()) throw new ReportRejected("payment-line", 404);
+        return reserveReward(rewards.getFirst(),
+                new RewardOrder(failed.lineId(), failed.id(), failed.environment(), failed.provider()), actor);
+    }
+
+    @Transactional
     public Claim reserveLine(UUID statement, UUID line, String operator, UUID request, UUID actor) {
         beneficiaries.lock();
         var existing = byRequest(request);
